@@ -1,0 +1,142 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+ * Design tokens.
+ *
+ * Tailwind 4 is configured in CSS, not JS. Everything declared in `@theme`
+ * becomes both a CSS custom property and a utility class, so `--color-primary`
+ * is usable as `bg-primary`, `text-primary`, `border-primary`, and so on.
+ *
+ * Semantic names (`primary`, `surface`, `danger`) rather than literal ones
+ * (`blue-600`) are what make the dark-mode block below a palette swap instead
+ * of a rewrite of every component.
+ * ------------------------------------------------------------------------- */
+@theme {
+  /* Brand */
+  --color-primary: oklch(0.52 0.19 258);
+  --color-primary-hover: oklch(0.46 0.19 258);
+  --color-primary-foreground: oklch(0.99 0 0);
+
+  /* Surfaces */
+  --color-canvas: oklch(0.99 0.002 258);
+  --color-surface: oklch(1 0 0);
+  --color-surface-muted: oklch(0.97 0.004 258);
+  --color-border: oklch(0.91 0.006 258);
+  --color-border-strong: oklch(0.84 0.008 258);
+
+  /* Text */
+  --color-foreground: oklch(0.21 0.02 258);
+  --color-muted-foreground: oklch(0.52 0.016 258);
+
+  /* Status */
+  --color-success: oklch(0.58 0.14 150);
+  --color-warning: oklch(0.72 0.16 75);
+  --color-danger: oklch(0.56 0.2 25);
+  --color-danger-hover: oklch(0.49 0.2 25);
+  --color-danger-foreground: oklch(0.99 0 0);
+
+  /* Focus ring, kept as one token so the whole app focuses identically */
+  --color-ring: oklch(0.52 0.19 258);
+
+  /* Typography */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
+
+  /* Radii */
+  --radius-card: 0.75rem;
+
+  /* Motion */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---------------------------------------------------------------------------
+ * Dark theme.
+ *
+ * Driven by a `data-theme` attribute on <html> so an explicit user choice can
+ * override the OS, with `prefers-color-scheme` as the default. Only the token
+ * values change here — no component needs a `dark:` variant for colour.
+ * ------------------------------------------------------------------------- */
+@layer base {
+  :root[data-theme='dark'],
+  :root:not([data-theme='light']) {
+    @media (prefers-color-scheme: dark) {
+      --color-canvas: oklch(0.17 0.012 258);
+      --color-surface: oklch(0.22 0.014 258);
+      --color-surface-muted: oklch(0.26 0.016 258);
+      --color-border: oklch(0.32 0.016 258);
+      --color-border-strong: oklch(0.42 0.018 258);
+      --color-foreground: oklch(0.96 0.004 258);
+      --color-muted-foreground: oklch(0.71 0.014 258);
+      --color-primary: oklch(0.66 0.17 258);
+      --color-primary-hover: oklch(0.72 0.17 258);
+      --color-primary-foreground: oklch(0.17 0.012 258);
+    }
+  }
+
+  /* An explicit choice must win in both directions, including when the OS
+     says light and the user asked for dark. */
+  :root[data-theme='dark'] {
+    --color-canvas: oklch(0.17 0.012 258);
+    --color-surface: oklch(0.22 0.014 258);
+    --color-surface-muted: oklch(0.26 0.016 258);
+    --color-border: oklch(0.32 0.016 258);
+    --color-border-strong: oklch(0.42 0.018 258);
+    --color-foreground: oklch(0.96 0.004 258);
+    --color-muted-foreground: oklch(0.71 0.014 258);
+    --color-primary: oklch(0.66 0.17 258);
+    --color-primary-hover: oklch(0.72 0.17 258);
+    --color-primary-foreground: oklch(0.17 0.012 258);
+  }
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    border-color: var(--color-border);
+  }
+
+  html {
+    color-scheme: light dark;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Visible, consistent focus for keyboard users only. */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  /* Respect a user's reduced-motion setting app-wide. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@utility sr-only-focusable {
+  /* Skip-links: hidden until focused. */
+  &:not(:focus):not(:focus-within) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

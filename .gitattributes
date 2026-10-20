@@ -1,0 +1,25 @@
+# Normalise to LF in the repository and in every working tree.
+#
+# Without `eol=lf`, Git checks files out with CRLF on Windows, which then
+# conflicts with Prettier's `endOfLine: "lf"` and `.editorconfig` — a fresh
+# clone on Windows would fail `npm run format:check` before anyone touched a
+# file.
+* text=auto eol=lf
+
+# Keep binaries byte-for-byte.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.avif binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.pdf binary
+
+# Generated — collapse in diffs and exclude from language statistics.
+package-lock.json linguist-generated=true -diff
+public/mockServiceWorker.js linguist-vendored=true -diff
