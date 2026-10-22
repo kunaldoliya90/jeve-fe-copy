@@ -1,0 +1,630 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+ * Design tokens.
+ *
+ * Tailwind 4 is configured in CSS, not JS. Everything declared in `@theme`
+ * becomes both a CSS custom property and a utility class, so `--color-primary`
+ * is usable as `bg-primary`, `text-primary`, `border-primary`, and so on.
+ *
+ * Semantic names (`primary`, `surface`, `danger`) rather than literal ones
+ * (`blue-600`) are what make the dark-mode block below a palette swap instead
+ * of a rewrite of every component.
+ *
+ * The palette is deliberately low-chroma with a single warm accent. An audit
+ * report is read for a long time in one sitting, and saturated chrome
+ * competes with the one thing on the page that is meant to be alarming —
+ * a failed check. `accent` is spent on that, never on decoration.
+ * ------------------------------------------------------------------------- */
+@theme {
+  /* --- Brand ------------------------------------------------------------ */
+  --color-primary: oklch(0.53 0.175 267);
+  --color-primary-hover: oklch(0.47 0.18 267);
+  --color-primary-active: oklch(0.42 0.18 267);
+  --color-primary-foreground: oklch(0.99 0 0);
+  --color-primary-subtle: oklch(0.955 0.028 267);
+
+  /* Champagne. Reserved for the single most important mark on a screen. */
+  --color-accent: oklch(0.71 0.105 83);
+  --color-accent-strong: oklch(0.6 0.115 80);
+  --color-accent-foreground: oklch(0.22 0.035 83);
+
+  /* --- Surfaces --------------------------------------------------------- */
+  --color-canvas: oklch(0.981 0.004 267);
+  --color-canvas-deep: oklch(0.955 0.006 267);
+  --color-surface: oklch(1 0 0);
+  --color-surface-muted: oklch(0.972 0.005 267);
+  --color-surface-sunken: oklch(0.958 0.006 267);
+  --color-border: oklch(0.915 0.007 267);
+  --color-border-strong: oklch(0.85 0.011 267);
+  --color-border-hairline: oklch(0.948 0.005 267);
+
+  /* --- Text ------------------------------------------------------------- */
+  --color-foreground: oklch(0.215 0.018 267);
+  --color-foreground-strong: oklch(0.145 0.022 267);
+  --color-muted-foreground: oklch(0.505 0.016 267);
+  --color-subtle-foreground: oklch(0.625 0.014 267);
+
+  /* --- Status ----------------------------------------------------------- */
+  --color-success: oklch(0.56 0.135 155);
+  --color-success-subtle: oklch(0.95 0.04 155);
+  --color-warning: oklch(0.7 0.155 72);
+  --color-warning-subtle: oklch(0.96 0.05 80);
+  --color-danger: oklch(0.55 0.2 25);
+  --color-danger-hover: oklch(0.48 0.2 25);
+  --color-danger-foreground: oklch(0.99 0 0);
+  --color-danger-subtle: oklch(0.955 0.03 25);
+  --color-info: oklch(0.58 0.14 240);
+
+  /* Focus ring, kept as one token so the whole app focuses identically. */
+  --color-ring: oklch(0.53 0.175 267);
+
+  /*
+   * The layer behind a modal.
+   *
+   * Its own token, dark in both themes, because the obvious choice — a
+   * translucent `canvas` — is near-white in light mode and dims nothing: a
+   * white dialog would then sit on a white page separated only by a shadow,
+   * and stop reading as modal at all. A scrim's job is to darken.
+   */
+  --color-scrim: oklch(0.21 0.018 267 / 0.42);
+
+  /* --- Typography ------------------------------------------------------- */
+  /*
+   * A system stack rather than a web font, on purpose. This is an internal
+   * tool often served inside a corporate network where an external font
+   * request either stalls or is blocked outright, and the first thing a
+   * reviewer sees must not be unstyled text or a blank frame. `--font-display`
+   * is its own token so a licensed brand face can be dropped in here, in one
+   * place, the day there is one.
+   */
+  --font-sans:
+    'Inter var', Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI Variable Display',
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: var(--font-sans);
+  --font-mono:
+    ui-monospace, 'Cascadia Code', 'JetBrains Mono', 'Source Code Pro', Menlo, Consolas, monospace;
+
+  /* --- Radii ------------------------------------------------------------ */
+  --radius-card: 0.875rem;
+  --radius-panel: 1.25rem;
+  --radius-pill: 999px;
+
+  /* --- Elevation -------------------------------------------------------- */
+  /*
+   * Two shadows per level: a tight contact shadow and a wide ambient one.
+   * A single blur reads as a sticker; the pair reads as a surface sitting
+   * above another surface, which is the whole point of elevation.
+   */
+  --shadow-hairline: 0 0 0 1px oklch(0.21 0.018 267 / 0.06);
+  --shadow-rest:
+    0 1px 2px oklch(0.21 0.018 267 / 0.05), 0 1px 3px -1px oklch(0.21 0.018 267 / 0.04);
+  --shadow-lift:
+    0 1px 2px oklch(0.21 0.018 267 / 0.04), 0 8px 24px -8px oklch(0.21 0.018 267 / 0.12);
+  --shadow-float:
+    0 2px 4px oklch(0.21 0.018 267 / 0.04), 0 16px 48px -12px oklch(0.21 0.018 267 / 0.18);
+  --shadow-glow:
+    0 0 0 1px oklch(0.53 0.175 267 / 0.18), 0 8px 32px -8px oklch(0.53 0.175 267 / 0.3);
+
+  /* --- Motion ----------------------------------------------------------- */
+  /*
+   * Four curves, each with a job. `soft` decelerates for anything entering;
+   * `spring` overshoots very slightly for anything the user caused directly;
+   * `glide` is symmetric for things that change position; `exit` accelerates
+   * away. Durations are tokens so the whole app can be slowed or quickened
+   * from one place rather than from four hundred class names.
+   */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.46, 0.64, 1);
+  --ease-glide: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  --duration-instant: 90ms;
+  --duration-quick: 160ms;
+  --duration-calm: 280ms;
+  --duration-slow: 520ms;
+
+  /* --- Animations ------------------------------------------------------- */
+  --animate-rise: rise var(--duration-slow) var(--ease-out-soft) both;
+  --animate-rise-sm: rise-sm var(--duration-calm) var(--ease-out-soft) both;
+  --animate-fade: fade var(--duration-calm) var(--ease-glide) both;
+  --animate-pop: pop var(--duration-calm) var(--ease-spring) both;
+  --animate-shimmer: shimmer 2.4s linear infinite;
+  --animate-sheen: sheen 2.2s var(--ease-glide) infinite;
+  --animate-breathe: breathe 2.8s var(--ease-glide) infinite;
+  --animate-halo: halo 2s var(--ease-glide) infinite;
+  --animate-drift: drift 24s var(--ease-glide) infinite alternate;
+  --animate-arc-sweep: arc-sweep 1s var(--ease-out-soft) both;
+  /* Dialogs. Radix keeps an element mounted until its close animation ends,
+     so a dismissal needs its own keyframes rather than a transition. */
+  --animate-fade-out: fade-out var(--duration-quick) var(--ease-exit) both;
+  --animate-pop-out: pop-out var(--duration-quick) var(--ease-exit) both;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 14px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  @keyframes rise-sm {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 6px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale3d(0.94, 0.94, 1);
+    }
+    to {
+      opacity: 1;
+      transform: scale3d(1, 1, 1);
+    }
+  }
+
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes pop-out {
+    to {
+      opacity: 0;
+      transform: scale3d(0.96, 0.96, 1);
+    }
+  }
+
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+
+  @keyframes sheen {
+    0% {
+      transform: translate3d(-120%, 0, 0);
+    }
+    60%,
+    100% {
+      transform: translate3d(320%, 0, 0);
+    }
+  }
+
+  @keyframes breathe {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+
+  @keyframes halo {
+    0% {
+      opacity: 0.65;
+      transform: scale3d(1, 1, 1);
+    }
+    70%,
+    100% {
+      opacity: 0;
+      transform: scale3d(2.1, 2.1, 1);
+    }
+  }
+
+  /*
+   * The compliance dial sweeping once on arrival.
+   *
+   * Only a `from` is declared: the `to` is whatever the element's own
+   * `stroke-dasharray` computes to, which is how one keyframe can animate to
+   * a value the component sets per-review without generating CSS per score.
+   * The app-wide reduced-motion rule collapses the duration, so a reader who
+   * asked for less motion simply gets the dial already filled.
+   */
+  @keyframes arc-sweep {
+    from {
+      stroke-dasharray: 0 var(--arc-total);
+    }
+  }
+
+  @keyframes drift {
+    from {
+      transform: translate3d(-3%, -2%, 0) scale3d(1, 1, 1);
+    }
+    to {
+      transform: translate3d(3%, 2%, 0) scale3d(1.08, 1.08, 1);
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Dark theme.
+ *
+ * Driven by a `data-theme` attribute on <html> so an explicit user choice can
+ * override the OS, with `prefers-color-scheme` as the default. Only the token
+ * values change here — no component needs a `dark:` variant for colour.
+ *
+ * Shadows are redefined rather than inherited: a black blur over a dark
+ * surface is invisible, so elevation in the dark is carried by a light inner
+ * hairline along the top edge plus a deeper ambient shadow.
+ * ------------------------------------------------------------------------- */
+@layer base {
+  :root[data-theme='dark'],
+  :root:not([data-theme='light']) {
+    @media (prefers-color-scheme: dark) {
+      --color-primary: oklch(0.69 0.155 267);
+      --color-primary-hover: oklch(0.75 0.15 267);
+      --color-primary-active: oklch(0.79 0.14 267);
+      --color-primary-foreground: oklch(0.16 0.015 267);
+      --color-primary-subtle: oklch(0.29 0.055 267);
+
+      --color-accent: oklch(0.81 0.11 83);
+      --color-accent-strong: oklch(0.87 0.11 85);
+      --color-accent-foreground: oklch(0.18 0.03 83);
+
+      --color-canvas: oklch(0.152 0.013 267);
+      --color-canvas-deep: oklch(0.118 0.012 267);
+      --color-surface: oklch(0.198 0.015 267);
+      --color-surface-muted: oklch(0.232 0.016 267);
+      --color-surface-sunken: oklch(0.172 0.014 267);
+      --color-border: oklch(0.295 0.017 267);
+      --color-border-strong: oklch(0.4 0.02 267);
+      --color-border-hairline: oklch(0.255 0.016 267);
+
+      --color-foreground: oklch(0.965 0.004 267);
+      --color-foreground-strong: oklch(0.995 0.002 267);
+      --color-muted-foreground: oklch(0.715 0.015 267);
+      --color-subtle-foreground: oklch(0.6 0.016 267);
+
+      --color-success: oklch(0.72 0.145 155);
+      --color-success-subtle: oklch(0.28 0.055 155);
+      --color-warning: oklch(0.8 0.145 78);
+      --color-warning-subtle: oklch(0.31 0.06 75);
+      --color-danger: oklch(0.68 0.19 25);
+      --color-danger-hover: oklch(0.74 0.18 25);
+      --color-danger-foreground: oklch(0.16 0.015 267);
+      --color-danger-subtle: oklch(0.3 0.07 25);
+      --color-info: oklch(0.72 0.13 240);
+
+      --color-ring: oklch(0.72 0.145 267);
+      --color-scrim: oklch(0.08 0.012 267 / 0.62);
+
+      --shadow-hairline: inset 0 1px 0 0 oklch(1 0 0 / 0.05);
+      --shadow-rest: inset 0 1px 0 0 oklch(1 0 0 / 0.04), 0 1px 2px oklch(0 0 0 / 0.4);
+      --shadow-lift: inset 0 1px 0 0 oklch(1 0 0 / 0.05), 0 10px 28px -10px oklch(0 0 0 / 0.6);
+      --shadow-float: inset 0 1px 0 0 oklch(1 0 0 / 0.06), 0 20px 56px -14px oklch(0 0 0 / 0.72);
+      --shadow-glow:
+        0 0 0 1px oklch(0.69 0.155 267 / 0.3), 0 10px 40px -10px oklch(0.69 0.155 267 / 0.45);
+    }
+  }
+
+  /* An explicit choice must win in both directions, including when the OS
+     says light and the user asked for dark. */
+  :root[data-theme='dark'] {
+    --color-primary: oklch(0.69 0.155 267);
+    --color-primary-hover: oklch(0.75 0.15 267);
+    --color-primary-active: oklch(0.79 0.14 267);
+    --color-primary-foreground: oklch(0.16 0.015 267);
+    --color-primary-subtle: oklch(0.29 0.055 267);
+
+    --color-accent: oklch(0.81 0.11 83);
+    --color-accent-strong: oklch(0.87 0.11 85);
+    --color-accent-foreground: oklch(0.18 0.03 83);
+
+    --color-canvas: oklch(0.152 0.013 267);
+    --color-canvas-deep: oklch(0.118 0.012 267);
+    --color-surface: oklch(0.198 0.015 267);
+    --color-surface-muted: oklch(0.232 0.016 267);
+    --color-surface-sunken: oklch(0.172 0.014 267);
+    --color-border: oklch(0.295 0.017 267);
+    --color-border-strong: oklch(0.4 0.02 267);
+    --color-border-hairline: oklch(0.255 0.016 267);
+
+    --color-foreground: oklch(0.965 0.004 267);
+    --color-foreground-strong: oklch(0.995 0.002 267);
+    --color-muted-foreground: oklch(0.715 0.015 267);
+    --color-subtle-foreground: oklch(0.6 0.016 267);
+
+    --color-success: oklch(0.72 0.145 155);
+    --color-success-subtle: oklch(0.28 0.055 155);
+    --color-warning: oklch(0.8 0.145 78);
+    --color-warning-subtle: oklch(0.31 0.06 75);
+    --color-danger: oklch(0.68 0.19 25);
+    --color-danger-hover: oklch(0.74 0.18 25);
+    --color-danger-foreground: oklch(0.16 0.015 267);
+    --color-danger-subtle: oklch(0.3 0.07 25);
+    --color-info: oklch(0.72 0.13 240);
+
+    --color-ring: oklch(0.72 0.145 267);
+    --color-scrim: oklch(0.08 0.012 267 / 0.62);
+
+    --shadow-hairline: inset 0 1px 0 0 oklch(1 0 0 / 0.05);
+    --shadow-rest: inset 0 1px 0 0 oklch(1 0 0 / 0.04), 0 1px 2px oklch(0 0 0 / 0.4);
+    --shadow-lift: inset 0 1px 0 0 oklch(1 0 0 / 0.05), 0 10px 28px -10px oklch(0 0 0 / 0.6);
+    --shadow-float: inset 0 1px 0 0 oklch(1 0 0 / 0.06), 0 20px 56px -14px oklch(0 0 0 / 0.72);
+    --shadow-glow:
+      0 0 0 1px oklch(0.69 0.155 267 / 0.3), 0 10px 40px -10px oklch(0.69 0.155 267 / 0.45);
+  }
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    border-color: var(--color-border);
+  }
+
+  html {
+    color-scheme: light dark;
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+    /* An anchored jump must clear the sticky header rather than hide under it. */
+    scroll-padding-top: 5.5rem;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings:
+      'ss01' 1,
+      'calt' 1;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Display sizes need negative tracking; body sizes do not. Setting it here
+     means no heading has to remember a `tracking-` class. */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.018em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Visible, consistent focus for keyboard users only. */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+  }
+
+  /* A native control inherits none of the above by default. */
+  select,
+  input,
+  textarea,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklab, var(--color-primary) 22%, transparent);
+  }
+
+  /* -------------------------------------------------------------------------
+   * Print.
+   *
+   * A compliance report gets printed and circulated, and two of the things
+   * that make it pleasant on screen would silently mutilate it on paper:
+   *
+   *  - `.reveal` holds a section at `opacity: 0` until it is scrolled to. A
+   *    reader who opens a report and prints it without scrolling to the bottom
+   *    would get sections 1 and 2 and *blank paper* where the failed checks,
+   *    the evidence register and the cost should be. That is the exact failure
+   *    this report is built to avoid, so the reveal is forced open here.
+   *  - `content-visibility: auto` lets the browser skip rendering off-screen
+   *    sections. Printing them unskipped is not optional either.
+   * ---------------------------------------------------------------------- */
+  @media print {
+    .reveal {
+      opacity: 1 !important;
+      transform: none !important;
+      transition: none !important;
+    }
+
+    .defer-paint {
+      content-visibility: visible !important;
+      contain-intrinsic-size: none !important;
+    }
+
+    /* Chrome furniture, which is navigation rather than content. */
+    header,
+    footer,
+    [aria-hidden='true'] {
+      display: none !important;
+    }
+
+    /* A sticky header reprints itself on page one and clips what is under it. */
+    .glass {
+      position: static !important;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation: none !important;
+      box-shadow: none !important;
+    }
+
+    /* A section split across a page break is a finding nobody reads. */
+    section {
+      break-inside: avoid;
+    }
+  }
+
+  /* Respect a user's reduced-motion setting app-wide. */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Utilities.
+ *
+ * Each one exists because the alternative is the same several declarations
+ * repeated across a dozen components, where they drift apart.
+ * ------------------------------------------------------------------------- */
+
+@utility sr-only-focusable {
+  /* Skip-links: hidden until focused. */
+  &:not(:focus):not(:focus-within) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@utility defer-paint {
+  /* A long report is mostly off-screen. Letting the browser skip layout and
+     paint for sections nobody has scrolled to is the single largest rendering
+     win available here, and `contain-intrinsic-size` is what stops the
+     scrollbar jumping while it does it. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 480px;
+}
+
+@utility glass {
+  /* Translucent chrome. The fallback matters: with no backdrop-filter the
+     text would otherwise sit unreadable over scrolling content. */
+  background-color: color-mix(in oklab, var(--color-surface) 82%, transparent);
+
+  @supports (backdrop-filter: blur(1px)) {
+    backdrop-filter: blur(16px) saturate(160%);
+  }
+}
+
+@utility hairline-top {
+  /* The bright top edge that makes a card read as lit from above. */
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--color-foreground) 10%, transparent) 18%,
+      color-mix(in oklab, var(--color-foreground) 10%, transparent) 82%,
+      transparent
+    );
+    pointer-events: none;
+  }
+}
+
+@utility text-shimmer {
+  /* The live-activity line. A travelling highlight says "working" without
+     the jitter of a spinner sitting next to text. */
+  background: linear-gradient(
+    90deg,
+    var(--color-muted-foreground) 20%,
+    var(--color-foreground) 42%,
+    var(--color-accent-strong) 50%,
+    var(--color-foreground) 58%,
+    var(--color-muted-foreground) 80%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: var(--animate-shimmer);
+
+  @media (prefers-reduced-motion: reduce) {
+    background: none;
+    -webkit-background-clip: border-box;
+    background-clip: border-box;
+    color: var(--color-foreground);
+  }
+}
+
+@utility skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-muted) 25%,
+    var(--color-border) 37%,
+    var(--color-surface-muted) 63%
+  );
+  background-size: 400% 100%;
+  animation: var(--animate-shimmer);
+}
+
+@utility press {
+  /* Direct-manipulation feedback. Transform only, so it never reflows. */
+  transition:
+    transform var(--duration-instant) var(--ease-spring),
+    background-color var(--duration-quick) var(--ease-glide),
+    border-color var(--duration-quick) var(--ease-glide),
+    box-shadow var(--duration-quick) var(--ease-glide),
+    color var(--duration-quick) var(--ease-glide);
+
+  &:active:not(:disabled) {
+    transform: scale(0.975);
+  }
+}
+
+@utility lift-on-hover {
+  transition:
+    transform var(--duration-calm) var(--ease-out-soft),
+    box-shadow var(--duration-calm) var(--ease-out-soft),
+    border-color var(--duration-calm) var(--ease-out-soft);
+
+  @media (hover: hover) {
+    &:hover {
+      transform: translate3d(0, -2px, 0);
+      box-shadow: var(--shadow-lift);
+    }
+  }
+}
+
+@utility stagger {
+  /* Children enter one after another. The index is set inline as `--i`, and
+     the cap keeps a long list from taking twenty seconds to appear. */
+  animation: var(--animate-rise-sm);
+  animation-delay: calc(min(var(--i, 0), 12) * 28ms);
+}

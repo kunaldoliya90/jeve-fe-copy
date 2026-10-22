@@ -1,0 +1,5 @@
+# Full typecheck + unit tests before anything leaves the machine. Lint and
+# format already ran per-file in pre-commit, so this catches what lint-staged
+# cannot see: cross-file type errors and broken behaviour.
+npm run typecheck
+npm run test
