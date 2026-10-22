@@ -1,6 +1,7 @@
 import { AlertTriangle } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
 import { env } from '@/config/env';
 import { toUserMessage } from '@/lib/http/errors';
 
@@ -21,15 +22,18 @@ export function ErrorFallback({
   title = 'Something went wrong',
 }: ErrorFallbackProps) {
   return (
-    <div
+    <Card
       role="alert"
-      className="mx-auto flex max-w-md flex-col items-center gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-8 text-center"
+      elevation="float"
+      className="mx-auto flex max-w-md animate-rise flex-col items-center gap-4 p-8 text-center"
     >
-      <AlertTriangle className="size-8 text-danger" aria-hidden="true" />
+      <span className="flex size-12 items-center justify-center rounded-pill bg-danger/10">
+        <AlertTriangle className="size-6 text-danger" aria-hidden="true" />
+      </span>
 
-      <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold">{title}</h2>
-        <p className="text-sm text-muted-foreground">{toUserMessage(error)}</p>
+      <div className="flex flex-col gap-1.5">
+        <h2 className="text-lg font-semibold text-foreground-strong">{title}</h2>
+        <p className="text-sm leading-relaxed text-muted-foreground">{toUserMessage(error)}</p>
       </div>
 
       {env.isDev ? (
@@ -41,6 +45,6 @@ export function ErrorFallback({
       <Button onClick={reset} variant="secondary">
         Try again
       </Button>
-    </div>
+    </Card>
   );
 }

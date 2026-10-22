@@ -13,6 +13,63 @@
 
     <!-- Avoids a flash of the wrong background before React mounts. -->
     <meta name="color-scheme" content="light dark" />
+
+    <!--
+      The canvas colour, inlined, in both themes.
+
+      The stylesheet carries the same values as tokens, but it arrives as a
+      separate request: without this the first paint is the browser's default
+      white, which flashes hard against the dark theme. Keep these two values
+      in step with `--color-canvas` in src/styles/globals.css.
+    -->
+    <style>
+      :root {
+        color-scheme: light dark;
+        background-color: oklch(0.981 0.004 267);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          background-color: oklch(0.152 0.013 267);
+        }
+      }
+      :root[data-theme='dark'] {
+        background-color: oklch(0.152 0.013 267);
+      }
+      body {
+        margin: 0;
+      }
+    </style>
+
+    <script>
+      /*
+       * Apply the stored theme before the first paint.
+       *
+       * The preference lives in localStorage under the app's UI-store key and
+       * is normally applied by a React effect — which runs after the first
+       * frame, so a user who chose dark on a light OS sees one white flash on
+       * every single load. Reading it here, inline and synchronously, is the
+       * only point early enough to prevent that.
+       *
+       * Deliberately silent on failure: a private window with storage blocked,
+       * or a stale value from an older shape of the store, must fall through
+       * to the OS preference rather than stop the page booting.
+       *
+       * The key must match STORAGE_KEYS.theme in src/config/constants.ts. It
+       * cannot be imported — this runs before any module does.
+       */
+      (function applyStoredTheme() {
+        try {
+          var raw = localStorage.getItem('jeve.ui.theme');
+          if (!raw) return;
+          var theme = JSON.parse(raw).state.theme;
+          if (theme === 'light' || theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', theme);
+          }
+        } catch (_) {
+          /* no stored preference we can trust; the OS decides */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

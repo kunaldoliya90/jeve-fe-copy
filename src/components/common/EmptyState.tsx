@@ -19,15 +19,23 @@ export function EmptyState({ title, description, icon: Icon, action, className }
   return (
     <div
       className={cn(
-        'flex flex-col items-center gap-3 rounded-[var(--radius-card)] border border-dashed border-border p-10 text-center',
+        'flex animate-fade flex-col items-center gap-3 rounded-card border border-dashed border-border bg-surface-sunken p-10 text-center',
         className,
       )}
     >
-      {Icon ? <Icon className="size-8 text-muted-foreground" aria-hidden="true" /> : null}
+      {Icon ? (
+        <span className="flex size-12 items-center justify-center rounded-pill bg-surface-muted">
+          <Icon className="size-5 text-muted-foreground" aria-hidden="true" />
+        </span>
+      ) : null}
+
       <div className="flex flex-col gap-1">
-        <p className="font-medium">{title}</p>
-        {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+        <p className="font-medium text-foreground">{title}</p>
+        {description ? (
+          <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">{description}</p>
+        ) : null}
       </div>
+
       {action}
     </div>
   );

@@ -28,6 +28,18 @@ export const paths = {
       path: 'dashboard',
       getHref: () => '/app/dashboard',
     },
+    reviews: {
+      path: 'reviews',
+      getHref: () => '/app/reviews',
+    },
+    reviewDetail: {
+      path: 'reviews/:reviewId',
+      getHref: (reviewId: string) => `/app/reviews/${reviewId}`,
+    },
+    reviewPlan: {
+      path: 'what-is-checked',
+      getHref: () => '/app/what-is-checked',
+    },
   },
 
   notFound: {

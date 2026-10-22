@@ -1,6 +1,7 @@
 import { Menu } from 'lucide-react';
 import { Outlet } from 'react-router';
 
+import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { Button } from '@/components/ui/Button';
 import { env } from '@/config/env';
 import { useAuth } from '@/features/auth';
@@ -25,7 +26,7 @@ export function AppLayout() {
         Skip to content
       </a>
 
-      <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface px-4">
+      <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-3 border-b border-border/70 glass px-4">
         <Button
           variant="ghost"
           size="icon"
@@ -36,12 +37,15 @@ export function AppLayout() {
           <Menu aria-hidden="true" />
         </Button>
 
-        <span className="font-semibold tracking-tight">{env.VITE_APP_NAME}</span>
+        <span className="font-semibold tracking-tight text-foreground-strong">
+          {env.VITE_APP_NAME}
+        </span>
 
         <div className="ml-auto flex items-center gap-3">
           {user ? (
             <span className="hidden text-sm text-muted-foreground sm:inline">{user.name}</span>
           ) : null}
+          <ThemeToggle />
           <Button
             variant="secondary"
             size="sm"
@@ -55,7 +59,7 @@ export function AppLayout() {
         </div>
       </header>
 
-      <main id="main-content" className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
+      <main id="main-content" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
         <Outlet />
       </main>
     </div>

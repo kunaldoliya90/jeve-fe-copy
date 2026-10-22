@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
 
 import { AppLayout } from '@/app/layouts/AppLayout';
 import { AuthLayout } from '@/app/layouts/AuthLayout';
+import { ReviewLayout } from '@/app/layouts/ReviewLayout';
 import { ProtectedRoute } from '@/app/router/ProtectedRoute';
 import { PublicOnlyRoute } from '@/app/router/PublicOnlyRoute';
 import { RouteErrorBoundary } from '@/app/router/RouteErrorBoundary';
@@ -19,13 +20,29 @@ import { paths } from '@/config/paths';
 const LoginPage = lazy(() => import('@/pages/LoginPage'));
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
+const ReviewsPage = lazy(() => import('@/pages/ReviewsPage'));
+const ReviewDetailPage = lazy(() => import('@/pages/ReviewDetailPage'));
+const ReviewPlanPage = lazy(() => import('@/pages/ReviewPlanPage'));
 
 const routes: RouteObject[] = [
   {
     path: paths.home.path,
     errorElement: <RouteErrorBoundary />,
     children: [
-      { index: true, element: <Navigate to={paths.app.dashboard.getHref()} replace /> },
+      { index: true, element: <Navigate to={paths.app.reviews.getHref()} replace /> },
+
+      // Review routes sit outside ProtectedRoute: the review service has no auth
+      // endpoints yet, so guarding them would lock the app behind a login that
+      // cannot succeed. Move them under the guard the moment auth exists.
+      {
+        path: paths.app.root.path,
+        element: <ReviewLayout />,
+        children: [
+          { path: paths.app.reviews.path, element: <ReviewsPage /> },
+          { path: paths.app.reviewDetail.path, element: <ReviewDetailPage /> },
+          { path: paths.app.reviewPlan.path, element: <ReviewPlanPage /> },
+        ],
+      },
 
       {
         element: <PublicOnlyRoute />,
@@ -43,10 +60,7 @@ const routes: RouteObject[] = [
           {
             path: paths.app.root.path,
             element: <AppLayout />,
-            children: [
-              { index: true, element: <Navigate to={paths.app.dashboard.getHref()} replace /> },
-              { path: paths.app.dashboard.path, element: <DashboardPage /> },
-            ],
+            children: [{ path: paths.app.dashboard.path, element: <DashboardPage /> }],
           },
         ],
       },

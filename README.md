@@ -106,6 +106,14 @@ in one** — they ship to every user.
 - **Colours** come from the semantic tokens in `src/styles/globals.css`
   (`bg-surface`, `text-muted-foreground`, …), never raw palette values — that
   is what keeps dark mode to a single block of CSS.
+- **Elevation and motion** are tokens in the same file: `shadow-rest`/`-lift`/
+  `-float` rather than a hand-written blur (light and dark need genuinely
+  different shadows), and `ease-out-soft`/`-spring`/`-glide` with
+  `duration-quick`/`-calm`/`-slow` rather than ad-hoc numbers. Animate
+  `opacity` and `transform` only; anything else costs a layout pass.
+- **Reduced motion** is honoured app-wide in CSS, but that cannot reach motion
+  driven from JavaScript. Anything animating in a component asks
+  `usePrefersReducedMotion()` first.
 
 ## Git hooks
 

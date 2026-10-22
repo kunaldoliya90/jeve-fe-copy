@@ -63,11 +63,20 @@ src/features/auth/
 ├── api/          Transport (auth.api.ts) + React Query hooks (auth.queries.ts)
 ├── components/   Feature-specific UI, co-located with its tests
 ├── hooks/        Feature-specific hooks
+├── lib/          Pure logic the components render but do not own
 ├── schemas/      Zod schemas — one source of truth for forms and API parsing
 ├── stores/       Feature-scoped client state
 ├── types/        Feature models
 └── index.ts      Public API. The only entry point other layers may use
 ```
+
+`lib/` is for the decisions a feature makes that are not React's business —
+`reviews/lib/narrative.ts` turns a raw SSE event into the sentence a reviewer
+reads, and `reviews/lib/status.ts` is the single place a review state is given
+a word and a colour. Keeping them out of the components is not tidiness: the
+wording *is* the product in an audit tool, and wording that lives in a pure
+module can be unit-tested sentence by sentence, which wording embedded in JSX
+cannot.
 
 ### Intra-feature imports are relative
 
