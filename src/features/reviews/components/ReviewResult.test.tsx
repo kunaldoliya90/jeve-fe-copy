@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { renderWithProviders, screen, within } from '@/testing/test-utils';
 
-import type { AreaView, CheckView, EvidenceView, ReviewDetail } from '../types';
+import type { AreaView, CheckView, EvidenceView, ReviewDetail, SplitSummary } from '../types';
 import { ReviewResult } from './ReviewResult';
 
 function review(overrides: Partial<ReviewDetail> = {}): ReviewDetail {
@@ -33,8 +33,8 @@ function review(overrides: Partial<ReviewDetail> = {}): ReviewDetail {
     areas: [],
     observations: [],
     evidence: [],
+    split_summary: null,
     needs_person: [],
-    gaps: [],
     next_steps: [],
     untraced_numbers: [],
     cost: { ai_calls: 0, total_tokens: 0, total_usd: '0', duration_ms: 1200, calls: [] },
@@ -86,6 +86,50 @@ function evidence(overrides: Partial<EvidenceView> = {}): EvidenceView {
   };
 }
 
+/**
+ * The smallest work paper that still renders: one class, one column, one total.
+ *
+ * Spelled the way a French workbook spells it and not the way any module does,
+ * so a label leaking into the component would show up here rather than passing.
+ */
+function workPaper(overrides: Partial<SplitSummary> = {}): SplitSummary {
+  return {
+    basis: {
+      table: 'calculation',
+      sheet: 'GPAY',
+      header_row: 8,
+      first_row: 9,
+      last_row: 2467,
+      rows_read: 2273,
+      rows_total: 2459,
+      classification_header: 'FTE/Non-FTE',
+      classification_column: 'AE',
+      classification_meaning: 'fte_classification',
+      tolerance: '0.005',
+      formulas_available: true,
+    },
+    categories: [{ key: 'fte', label: 'FTE', row_count: 2193 }],
+    components: [
+      {
+        header: 'Total Provision CP',
+        column: 'M',
+        meaning: 'cp_provision',
+        number_format: '#,##0.00',
+        amounts: { fte: '27765784.53' },
+        total: '27765784.53',
+        rows_populated: 2193,
+        shares: { fte: 1 },
+      },
+    ],
+    tie_outs: [],
+    rules: [],
+    walkthroughs: [],
+    tests: [],
+    notes: [],
+    ...overrides,
+  };
+}
+
 describe('ReviewResult', () => {
   it('shows the score, the band and that it is provisional', () => {
     renderWithProviders(<ReviewResult review={review()} />);
@@ -100,18 +144,6 @@ describe('ReviewResult', () => {
 
     expect(screen.getByText(/No compliance score/)).toBeInTheDocument();
     expect(screen.getByText(/This is not a zero/)).toBeInTheDocument();
-  });
-
-  it('lists what could not be validated', () => {
-    renderWithProviders(
-      <ReviewResult
-        review={review({ gaps: ['population_complete is unable to validate: missing verdict.'] })}
-      />,
-    );
-
-    expect(
-      screen.getByRole('heading', { name: 'What could not be validated' }),
-    ).toBeInTheDocument();
   });
 
   it('lists what to do next', () => {
@@ -187,84 +219,6 @@ describe('ReviewResult', () => {
     // engineer what their own report means.
     const reason = screen.getByText('Incomplete row coverage');
     expect(reason).toHaveAttribute('title', 'Reported by the review as incomplete_row_coverage');
-  });
-});
-
-describe('what could not be validated', () => {
-  function panel() {
-    return screen.getByRole('region', { name: 'What could not be validated' });
-  }
-
-  const unproven = check({
-    check_id: 'population_complete',
-    area: 'population',
-    question: 'Is every in-scope employee present?',
-    status: 'unable_to_validate',
-    conclusion: '1 distinct employee reference over 2,273 rows.',
-    needs_review: true,
-    review_reasons: [],
-  });
-
-  const scoredUnder = (): Partial<ReviewDetail> => ({
-    areas: [area({ area: 'population', status: 'unable_to_validate', checks: [unproven] })],
-    gaps: ['population_complete is unable to validate: missing verdict.'],
-  });
-
-  it('frames the list before it, not after it', () => {
-    // By the time a reader reaches a footnote saying "unproven is not a
-    // near-pass" they have already decided what the list meant.
-    renderWithProviders(<ReviewResult review={review(scoredUnder())} />);
-
-    const framing = within(panel()).getByText(/not a near-pass/);
-    const first = within(panel()).getAllByRole('listitem')[0];
-    expect(framing.compareDocumentPosition(first!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-  });
-
-  it('reads as the question somebody has to answer, not as a status code', () => {
-    renderWithProviders(<ReviewResult review={review(scoredUnder())} />);
-
-    expect(within(panel()).getByText('Is every in-scope employee present?')).toBeInTheDocument();
-    expect(within(panel()).getByText('Unproven')).toBeInTheDocument();
-    // What the line adds beyond the badge is kept; what it restates is not.
-    expect(panel()).toHaveTextContent('Could not be settled: Missing verdict.');
-    expect(panel()).not.toHaveTextContent('is unable to validate');
-  });
-
-  it('keeps what the review did get to before it stopped', () => {
-    renderWithProviders(<ReviewResult review={review(scoredUnder())} />);
-
-    // Listed as unproven with no sentence under it reads as though nobody
-    // looked, which is a different and worse claim.
-    expect(
-      within(panel()).getByText(/1 distinct employee reference over 2,273 rows/),
-    ).toBeInTheDocument();
-  });
-
-  it('links to the parameter the check was scored under', () => {
-    renderWithProviders(<ReviewResult review={review(scoredUnder())} />);
-
-    expect(
-      within(panel()).getByRole('link', { name: 'See it under Employee population' }),
-    ).toHaveAttribute('href', '#parameter-population');
-  });
-
-  it('shows a line naming nothing this review reported exactly as written', () => {
-    // Guessing which check it meant would attach a reason to the wrong finding.
-    renderWithProviders(
-      <ReviewResult review={review({ gaps: ['salary_tieout is unproven: no source.'] })} />,
-    );
-
-    // Respaced, and capitalised because it opens the sentence. Nothing else.
-    expect(panel()).toHaveTextContent('Salary tieout is unproven: no source.');
-    expect(within(panel()).queryByRole('link')).toBeNull();
-  });
-
-  it('counts the open questions', () => {
-    renderWithProviders(
-      <ReviewResult review={review({ gaps: ['one is unproven.', 'two is unproven.'] })} />,
-    );
-
-    expect(panel()).toHaveTextContent('2 checks');
   });
 });
 
@@ -372,18 +326,79 @@ describe('the worklist', () => {
     expect(within(panel()).getByText('Employee population')).toBeInTheDocument();
   });
 
-  it('numbers the cost breakdown after the worklist, and in its place when there is none', () => {
-    const { unmount } = renderWithProviders(
-      <ReviewResult review={review({ needs_person: [waiting] })} />,
+  it('numbers the cost breakdown above the worklist', () => {
+    // The cost is on every report and the worklist is not, so the cost is
+    // numbered first: a number that moves report to report cannot be quoted on.
+    renderWithProviders(
+      <ReviewResult review={review({ areas: [area()], needs_person: [waiting] })} />,
     );
 
+    expect(screen.getByRole('region', { name: '3 Key tested parameters' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /^4 What this review cost/ })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: '5 Needs a person' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: /^6 What this review cost/ })).toBeInTheDocument();
-    unmount();
+  });
 
-    // The numbered spine must not skip a number when nothing is waiting.
-    renderWithProviders(<ReviewResult review={review()} />);
+  it('numbers the cost 5 on a report carrying a register and parameters', () => {
+    renderWithProviders(
+      <ReviewResult
+        review={review({
+          evidence: [evidence()],
+          areas: [area()],
+          needs_person: [waiting],
+          split_summary: workPaper(),
+        })}
+      />,
+    );
+
     expect(screen.getByRole('region', { name: /^5 What this review cost/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: /^6 Independent recalculation/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '7 Needs a person' })).toBeInTheDocument();
+  });
+
+  /**
+   * The numbers are how one person says "look at four" to another, so a report
+   * whose sections run 3, 5, 6 reads as one with a section missing.
+   *
+   * Asserted as contiguity rather than against a fixed list, because every
+   * section below the third is conditional: the combinations are the point, and
+   * a test naming specific numbers has to be rewritten every time a section is
+   * added — which is exactly when this invariant is most likely to break.
+   */
+  it.each([
+    ['nothing conditional present', review()],
+    ['a worklist only', review({ needs_person: [waiting] })],
+    ['an evidence register only', review({ evidence: [evidence()] })],
+    ['a recalculation only', review({ split_summary: workPaper() })],
+    [
+      'all of them',
+      review({
+        needs_person: [waiting],
+        evidence: [evidence()],
+        split_summary: workPaper(),
+      }),
+    ],
+  ])('numbers the sections 1 upwards with no gaps, given %s', (_case, detail) => {
+    renderWithProviders(<ReviewResult review={detail} />);
+
+    const numbered = screen
+      .getAllByRole('region')
+      // `Section` names itself with `aria-labelledby`, not `aria-label`, so the
+      // number has to be read off the heading it points at. Reading the wrong
+      // attribute returns null for every section, and the assertion below then
+      // compares an empty list to an empty list and passes on any report at all.
+      .map((region) =>
+        region.ownerDocument.getElementById(region.getAttribute('aria-labelledby') ?? ''),
+      )
+      .flatMap((heading) => {
+        const match = /^(\d+)\s/.exec(heading?.textContent.trim() ?? '');
+        return match?.[1] ? [Number(match[1])] : [];
+      })
+      .sort((left, right) => left - right);
+
+    expect(numbered.length).toBeGreaterThan(0);
+    expect(numbered).toEqual(numbered.map((_value, position) => position + 1));
   });
 });
 
@@ -748,6 +763,30 @@ describe('the evidence register', () => {
     renderWithProviders(<ReviewResult review={review()} />);
 
     expect(screen.queryByRole('region', { name: /evidence and validation register/ })).toBeNull();
+  });
+
+  it('is section 2, above the score it qualifies', () => {
+    // Which layers arrived at all is the question asked first. A score read
+    // before that is settled is a score read without knowing how much of the
+    // file it was computed from.
+    renderWithProviders(
+      <ReviewResult review={review({ evidence: [evidence()], areas: [area()] })} />,
+    );
+
+    const register = screen.getByRole('region', {
+      name: '2 Detailed evidence and validation register',
+    });
+    const score = screen.getByRole('region', { name: '3 Evidence-led compliance' });
+
+    expect(register.compareDocumentPosition(score)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it('hands 2 back to the score on a review that expected no evidence', () => {
+    // The register is conditional, so the number it would have taken cannot be
+    // left as a hole in the spine.
+    renderWithProviders(<ReviewResult review={review({ areas: [area()] })} />);
+
+    expect(screen.getByRole('region', { name: '2 Evidence-led compliance' })).toBeInTheDocument();
   });
 });
 

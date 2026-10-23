@@ -118,6 +118,8 @@ overriding.
 | Semantic colour tokens, not literal ones          | Dark mode becomes a palette swap in one CSS block rather than a `dark:` variant on every component.                               |
 | Pages are lazy, layouts are eager                 | Every route needs the layout; only one needs its page. Each route ships as its own chunk.                                         |
 | MSW for both dev and tests                        | One set of handlers means the mock the UI was built against is the mock the tests assert on.                                      |
+| Figures formatted from the workbook's own format string | The alternative is a table in this codebase saying which columns are money, which are days and which are percentages - written per entry type, per country and per period, and wrong the first time a preparer adds a column. `lib/excelFormat.ts` is the only thing that reads it. |
+| Report section numbers allocated in reading order | Every section below the third is conditional. Numbered by hand, the spine skipped 4 whenever the evidence register was empty - and the numbers are how one person says "look at four" to another. |
 | Logging only via `@/lib/logger`                   | `no-console` is an error, so log level is configurable and there is one place to add a crash reporter.                             |
 
 ## Adding a feature
