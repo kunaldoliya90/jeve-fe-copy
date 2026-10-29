@@ -208,8 +208,15 @@ export interface ReviewDetail {
    */
   observations: CheckView[];
   evidence: EvidenceView[];
-  needs_person: CheckView[];
+  /**
+   * The category split work paper: the arithmetic behind the parameters above.
+   * `null` when the workbook bound no table whose rows could be re-added, and
+   * on any review stored before the work paper existed.
+   */
+  split_summary: SplitSummary | null;
+  /** Checks the review could not establish either way. */
   gaps: string[];
+  needs_person: CheckView[];
   next_steps: string[];
   /**
    * Numbers in the written summary that trace to no figure and no score.
@@ -228,6 +235,162 @@ export interface ReviewDetail {
    */
   not_yet_run: string[];
 }
+
+/* -------------------------------------------------------------------------- */
+/*  The category split work paper                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The entry's value re-added from the rows of the working and divided by the
+ * classes the workbook itself sorts them into.
+ *
+ * Nothing in these shapes is a label this codebase chose. `header` is the text
+ * the preparer typed at the top of the column, `CategoryRef.label` is how the
+ * file spells that class, and `number_format` is Excel's own format string for
+ * the column. A workbook that calls its classes `Permanent` and `Temp` renders
+ * correctly with no edit here, and that is the point — a mapping table in this
+ * file would be a second place for the vocabulary to go stale.
+ */
+export interface SplitBasis {
+  /** The name the entry type binds this table under. */
+  table: string;
+  sheet: string;
+  header_row: number;
+  first_row: number;
+  last_row: number;
+  /**
+   * Rows that carried a class and were summed. Below `rows_total` whenever the
+   * block reaches past the last record — the rows beneath it are the
+   * preparer's own subtotals, and nothing treats those as records that failed
+   * to classify.
+   */
+  rows_read: number;
+  rows_total: number;
+  classification_header: string;
+  classification_column: string;
+  /**
+   * The meaning the sheet map bound the class column to. `null` means the
+   * column was picked by shape instead, which the UI must say: it is the
+   * fallback, and a reader is owed the difference.
+   */
+  classification_meaning: string | null;
+  tolerance: string;
+  /** `false` for a binary workbook, which carries no formulas to read rules from. */
+  formulas_available: boolean;
+}
+
+export interface CategoryRef {
+  /** Case-folded. Joins to the keys of `ComponentSplit.amounts`. */
+  key: string;
+  /** The first spelling the file uses. What a reader sees. */
+  label: string;
+  row_count: number;
+}
+
+export interface ComponentSplit {
+  /** The column's own header text — the row title, in the preparer's words. */
+  header: string;
+  column: string;
+  meaning: string | null;
+  /** Excel's format string, so the UI renders the column the way the file does. */
+  number_format: string | null;
+  /** Keyed by `CategoryRef.key`. Only the classes that actually occur appear. */
+  amounts: Record<string, string>;
+  total: string;
+  rows_populated: number;
+  /** Each class against the component total. Empty when the total is zero. */
+  shares: Record<string, number>;
+}
+
+export interface SplitTieOut {
+  label: string;
+  /** Where the stated total sits, e.g. `AU7`. */
+  cell: string;
+  stated: string | null;
+  recomputed: string;
+  variance: string | null;
+  /** `null` when there was nothing to compare, which is not a pass. */
+  within_tolerance: boolean | null;
+  /**
+   * Whether the stated total calculates itself. `null` on a format that
+   * carries no formulas — "nobody can tell" is not "typed by hand", and the
+   * UI must never render the two the same way.
+   */
+  stated_is_formula: boolean | null;
+}
+
+export interface DerivedRule {
+  column: string;
+  /** The row it was read off, which is the row to open the file at. */
+  row: number;
+  header: string;
+  /** As written in the cell. */
+  formula: string;
+  /** The same formula with each reference replaced by that column's header. */
+  in_headers: string;
+  reads: string[];
+}
+
+export interface WalkStep {
+  header: string;
+  column: string;
+  cell: string;
+  value: string | null;
+  number_format: string | null;
+  /** `null` when the cell is a typed constant rather than a calculation. */
+  formula: string | null;
+  in_headers: string | null;
+}
+
+/** One row of the working, traced. A row number and never an identifier. */
+export interface RowWalkthrough {
+  row: number;
+  why: string;
+  category: string;
+  /** Header and value for the columns that describe the row without naming it. */
+  context: [string, string][];
+  steps: WalkStep[];
+}
+
+export interface ExceptionTest {
+  check_id: string;
+  question: string;
+  area: string;
+  tool: string;
+  rows_total: number;
+  rows_checked: number;
+  flagged: number;
+  /** Read off the weight the business gave the area. */
+  severity: 'high' | 'medium' | 'info';
+  /** The status the engine reached, carried across rather than re-derived. */
+  status: CheckStatus;
+  financial_impact: string | null;
+  first_example: string | null;
+  conclusion: string;
+}
+
+export interface SplitSummary {
+  basis: SplitBasis;
+  categories: CategoryRef[];
+  components: ComponentSplit[];
+  tie_outs: SplitTieOut[];
+  rules: DerivedRule[];
+  walkthroughs: RowWalkthrough[];
+  tests: ExceptionTest[];
+  /**
+   * What the work paper could not do, said in words. Rendered rather than
+   * dropped: a missing rules block with no note reads as a workbook with no
+   * formulas in it.
+   */
+  notes: string[];
+}
+
+/** How a test's severity is worded. The grade itself comes from the server. */
+export const SEVERITY_LABELS: Record<ExceptionTest['severity'], string> = {
+  high: 'High',
+  medium: 'Medium',
+  info: 'Information',
+};
 
 export interface ReviewSummary {
   review_id: string;

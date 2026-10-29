@@ -17,7 +17,7 @@ import type { EvidenceView, ReviewDetail } from '../types';
 import { Section } from './Section';
 import { TableShell, Td, Th, Tr } from './TableShell';
 
-export function EvidenceRegister({ review }: { review: ReviewDetail }) {
+export function EvidenceRegister({ review, index }: { review: ReviewDetail; index: number }) {
   const register = review.evidence;
   if (register.length === 0) return null;
 
@@ -28,7 +28,7 @@ export function EvidenceRegister({ review }: { review: ReviewDetail }) {
 
   return (
     <Section
-      index={4}
+      index={index}
       id="evidence"
       title="Detailed evidence and validation register"
       aside={

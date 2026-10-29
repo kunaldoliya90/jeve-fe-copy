@@ -88,7 +88,7 @@ const COUNTED: readonly { status: CheckStatus; label: string }[] = [
   { status: 'partial', label: 'Partial' },
 ];
 
-export function TestedParameters({ review }: { review: ReviewDetail }) {
+export function TestedParameters({ review, index }: { review: ReviewDetail; index: number }) {
   const { areas } = review;
   const observations = review.observations.filter(listed);
 
@@ -96,7 +96,7 @@ export function TestedParameters({ review }: { review: ReviewDetail }) {
 
   return (
     <Section
-      index={3}
+      index={index}
       id="parameters"
       title="Key tested parameters"
       aside={

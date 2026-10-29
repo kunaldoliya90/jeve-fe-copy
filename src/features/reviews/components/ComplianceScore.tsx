@@ -30,10 +30,10 @@ import { CopyButton } from './CopyButton';
 import { Cite, Segments } from './Prose';
 import { Section } from './Section';
 
-export function ComplianceScore({ review }: { review: ReviewDetail }) {
+export function ComplianceScore({ review, index }: { review: ReviewDetail; index: number }) {
   return (
     <Section
-      index={2}
+      index={index}
       id="compliance"
       title="Evidence-led compliance"
       aside={

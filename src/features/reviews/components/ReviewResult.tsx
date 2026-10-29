@@ -2,9 +2,14 @@
  * What the review found, and — just as prominently — what it did not do.
  *
  * The report reads top to bottom the way it is discussed: which entry this is,
- * what it scored, which parameters decided that, what evidence stood behind
- * them, and what it cost to find out. The numbered sections exist so one
- * person can say "look at three" to another.
+ * what evidence was on the file, what it scored, which parameters decided
+ * that, what it cost to find out, and then the working behind it. The numbered
+ * sections exist so one person can say "look at three" to another.
+ *
+ * The register sits above the score rather than below the parameters. What a
+ * reviewer is asked first is which layers arrived at all, and a score read
+ * before that question is settled is a score read without knowing how much of
+ * the file it was computed from.
  *
  * `not_yet_run` and `untraced_numbers` are first-class panels rather than
  * footnotes, and `untraced_numbers` sits directly under the summary it
@@ -32,6 +37,7 @@ import { EvidenceRegister } from './EvidenceRegister';
 import { NextSteps } from './NextSteps';
 import { NotValidated } from './NotValidated';
 import { Prose } from './Prose';
+import { Recalculation } from './Recalculation';
 import { Section } from './Section';
 import { LineagePanel, SheetTable } from './SheetTable';
 import { StatusBadge, TestedParameters } from './TestedParameters';
@@ -43,11 +49,44 @@ interface ReviewResultProps {
   review: ReviewDetail;
 }
 
+/**
+ * The first number the spine hands out.
+ *
+ * Section 1 — which entry this is — is on every report, so it numbers itself.
+ * Everything below it is handed a number in reading order, the score included:
+ * the register above it is conditional, so the score is 2 on a review with no
+ * evidence and 3 on one with a register, and neither spine skips a number.
+ */
+const FIRST_ALLOCATED_SECTION = 2;
+
 export function ReviewResult({ review }: ReviewResultProps) {
   const { workbook } = review;
-  // The numbered spine must not skip a number. The worklist only exists when
-  // something is waiting, so the cost breakdown takes whichever number is left.
-  const costIndex = review.needs_person.length > 0 ? 6 : 5;
+
+  // The numbered spine must not skip a number: the numbers are how one person
+  // says "look at four" to another, and a report whose sections run 3, 5, 6
+  // reads as one with a section missing. Allocated in reading order rather than
+  // written at each call site, because every section below the first is either
+  // conditional or sits behind one that is, and they were once numbered by hand.
+  //
+  // The calls below must stay in the order the sections render in. That is the
+  // whole mechanism: a number is claimed by being asked for first.
+  let next = FIRST_ALLOCATED_SECTION;
+  const number = () => next++;
+  const evidenceIndex = review.evidence.length > 0 ? number() : 0;
+  // Always present, and still numbered here rather than at the call site: it is
+  // 2 or 3 depending on whether a register claimed 2 ahead of it.
+  const scoreIndex = number();
+  // Conditional too, which is how a review with nothing scored came to print a
+  // spine reading 1, 2, 4.
+  const parametersIndex = review.areas.length > 0 || review.observations.length > 0 ? number() : 0;
+  // Always present, so it is the second number that moves with what precedes it:
+  // 5 on a report carrying a register and parameters, lower on one that is not.
+  const costIndex = number();
+  // The working behind the parameters, and the checks nobody could settle. Both
+  // conditional, and both below the cost for that reason: a number taken by a
+  // section that is sometimes absent cannot be quoted onward.
+  const splitIndex = review.split_summary ? number() : 0;
+  const needsPersonIndex = review.needs_person.length > 0 ? number() : 0;
 
   return (
     <div className="space-y-5">
@@ -61,69 +100,78 @@ export function ReviewResult({ review }: ReviewResultProps) {
         <EntryHeader review={review} />
       </Reveal>
 
-      <Reveal index={1}>
-        <ComplianceScore review={review} />
+      {review.evidence.length > 0 ? (
+        <Reveal index={1}>
+          <EvidenceRegister review={review} index={evidenceIndex} />
+        </Reveal>
+      ) : null}
+
+      <Reveal index={2}>
+        <ComplianceScore review={review} index={scoreIndex} />
       </Reveal>
 
+      {/* Directly under the summary it qualifies, wherever that summary sits. */}
       {review.untraced_numbers.length > 0 ? (
-        <Reveal index={2}>
+        <Reveal index={3}>
           <UntracedNumbers numbers={review.untraced_numbers} />
         </Reveal>
       ) : null}
 
-      <Reveal index={3}>
-        <TestedParameters review={review} />
-      </Reveal>
-
       <Reveal index={4}>
-        <EvidenceRegister review={review} />
+        <TestedParameters review={review} index={parametersIndex} />
       </Reveal>
 
-      {review.needs_person.length > 0 ? (
-        <Reveal index={5}>
-          <NeedsPerson review={review} index={5} />
-        </Reveal>
-      ) : null}
-
-      <Reveal index={6}>
+      <Reveal index={5}>
         <CostBreakdown review={review} index={costIndex} />
       </Reveal>
 
-      {review.gaps.length > 0 ? (
+      {review.split_summary ? (
         <Reveal index={6}>
+          <Recalculation review={review} index={splitIndex} />
+        </Reveal>
+      ) : null}
+
+      {review.needs_person.length > 0 ? (
+        <Reveal index={7}>
+          <NeedsPerson review={review} index={needsPersonIndex} />
+        </Reveal>
+      ) : null}
+
+      {review.gaps.length > 0 ? (
+        <Reveal index={8}>
           <NotValidated review={review} />
         </Reveal>
       ) : null}
 
       {review.next_steps.length > 0 ? (
-        <Reveal index={7}>
+        <Reveal index={9}>
           <NextSteps review={review} />
         </Reveal>
       ) : null}
 
       {review.not_yet_run.length > 0 ? (
-        <Reveal index={7}>
+        <Reveal index={9}>
           <NotYetRun items={review.not_yet_run} />
         </Reveal>
       ) : null}
 
       {workbook ? (
         <>
-          <Reveal index={8}>
+          <Reveal index={10}>
             <WorkbookFacts workbook={workbook} />
           </Reveal>
 
           {workbook.defect_summary.length > 0 ? (
-            <Reveal index={8}>
+            <Reveal index={10}>
               <Defects lines={workbook.defect_summary} />
             </Reveal>
           ) : null}
 
-          <Reveal index={8}>
+          <Reveal index={10}>
             <SheetTable sheets={workbook.sheets} />
           </Reveal>
 
-          <Reveal index={8}>
+          <Reveal index={10}>
             <LineagePanel lineage={workbook.lineage} />
           </Reveal>
         </>
