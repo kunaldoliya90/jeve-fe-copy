@@ -103,6 +103,7 @@ function review(summary: SplitSummary | null): ReviewDetail {
     areas: [],
     observations: [],
     evidence: [],
+    recalculation: null,
     split_summary: summary,
     needs_person: [],
     next_steps: [],

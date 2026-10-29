@@ -118,8 +118,8 @@ export const PHASES: readonly PhaseSpec[] = [
     actor: 'Skills',
     blurb:
       'Skills run side by side (amount validation, period and cut-off, trend, PII) and their results are gathered up for the agent.',
-    note: 'The arithmetic is re-performed in Python, cell by cell. The evidence that is not a number (the written methodology, any pasted screenshots) is read alongside it.',
-    steps: ['13a', '13', '13b'],
+    note: 'The arithmetic is re-performed in Python, cell by cell, and the entry itself is rebuilt from the inputs the business approved and set against what was actually posted. The evidence that is not a number (the written methodology, any pasted screenshots) is read alongside it.',
+    steps: ['13a', '13', '13c', '13b'],
   },
   {
     id: 'judge',
@@ -165,6 +165,7 @@ const STEP_ACTIVITY: Record<string, string> = {
   '12': 'Setting aside any check this workbook cannot support',
   '13a': 'Reading the evidence that is not a number',
   '13': 'Re-performing the arithmetic, check by check',
+  '13c': 'Rebuilding the entry from its own inputs',
   '13b': 'Grouping the exceptions by cause',
   '14': 'Working out what the figures mean',
   '15': 'Arguing against its own conclusions',
@@ -197,6 +198,7 @@ export const STEP_LABELS: Record<string, string> = {
   '12': 'Checking the plan',
   '13a': 'Non-numeric evidence',
   '13': 'Running the checks',
+  '13c': 'Rebuilding the entry',
   '13b': 'Grouping exceptions',
   '14': 'Judging',
   '15': 'Challenging',
@@ -272,6 +274,21 @@ export function formatBytes(bytes: number): string {
 
 function percent(fraction: number): string {
   return `${String(Math.round(fraction * 100))}%`;
+}
+
+/**
+ * An amount from an event payload, written the way money is written.
+ *
+ * The server sends these as decimal strings and some of them carry a long tail;
+ * two places is what a reader wants on a progress line, and the work paper is
+ * where the exact figure is read. `null` for anything that is not a number, so
+ * a caller can say something different rather than printing "NaN".
+ */
+function amount(raw: string | null): string | null {
+  if (raw === null) return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return null;
+  return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 /**
@@ -372,7 +389,7 @@ export function describeEvent(event: ProgressEvent): Omit<ActivityLine, 'id'> | 
         ...base,
         kind: 'progress',
         pending: true,
-        text: STEP_ACTIVITY[step] ?? (event.name || `Working on step ${step}`),
+        text: startedText(step, detail) ?? (event.name || `Working on step ${step}`),
       };
 
     case 'step_finished': {
@@ -407,6 +424,25 @@ function shortcutText(detail: Detail, step: string): string {
     return 'This workbook uses a layout that has already been read and proved out, so the second independent read and the planning that goes with it can be skipped. Every check still runs on this file.';
   }
   return 'Reused work already done, so this part costs nothing.';
+}
+
+/**
+ * What a step is doing, said while it is doing it.
+ *
+ * Almost every step has nothing to add beyond its own name, and says it in
+ * `STEP_ACTIVITY`. The exception is the one step whose size is known before it
+ * starts and is worth saying: rebuilding a 37,613-row entry takes long enough
+ * to be seen, and "rebuilding 37,613 records" is the difference between a
+ * progress line and a spinner.
+ */
+function startedText(step: string, detail: Detail): string | null {
+  const activity = STEP_ACTIVITY[step] ?? null;
+  if (step !== '13c') return activity;
+
+  const rows = readNumber(detail, 'rows');
+  return rows === null || rows === 0
+    ? activity
+    : `Rebuilding the entry from its own inputs: ${plural(rows, 'record')} to re-add`;
 }
 
 /**
@@ -515,6 +551,29 @@ function finishedText(step: string, detail: Detail): string | null {
       const figures = readNumber(detail, 'figures');
       if (checks === null) return null;
       return `Ran ${plural(checks, 'check')}${figures === null ? '' : `, producing ${plural(figures, 'figure')} from the workbook itself`}.`;
+    }
+
+    case '13c': {
+      const rebuilt = readNumber(detail, 'rows_recomputed');
+      const recomputed = amount(readText(detail, 'recomputed'));
+      if (rebuilt === null || recomputed === null) {
+        return 'The entry could not be rebuilt from its own inputs, so nothing has been compared against the amount that was posted.';
+      }
+      const from = `Rebuilt the entry from ${plural(rebuilt, 'record')}: ${recomputed}`;
+      const booked = amount(readText(detail, 'booked'));
+      if (booked === null) {
+        return `${from}. There is nothing on the file to compare it against, so it stands on its own.`;
+      }
+      const difference = amount(readText(detail, 'difference'));
+      if (difference === null || Number(readText(detail, 'difference')) === 0) {
+        return `${from}, which is the ${booked} that was actually posted, to the cent.`;
+      }
+      const inside = readFlag(detail, 'within_tolerance') === true;
+      const cited = readNumber(detail, 'citations') ?? 0;
+      const where = cited > 0 ? ` ${plural(cited, 'record')} did not reconcile.` : '';
+      return inside
+        ? `${from} against ${booked} posted — ${difference} apart, which is inside the tolerance the business agreed.${where}`
+        : `${from} against ${booked} posted — ${difference} apart, beyond the tolerance the business agreed.${where}`;
     }
 
     case '13b': {

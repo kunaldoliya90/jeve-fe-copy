@@ -209,6 +209,13 @@ export interface ReviewDetail {
   observations: CheckView[];
   evidence: EvidenceView[];
   /**
+   * The entry recalculation work paper: the posted amount regenerated from the
+   * formula the business approved, record by record, against what was actually
+   * booked. `null` when the entry type states no formula, when the working
+   * could not be bound, and on any review stored before it existed.
+   */
+  recalculation: EntryRecalculation | null;
+  /**
    * The category split work paper: the arithmetic behind the parameters above.
    * `null` when the workbook bound no table whose rows could be re-added, and
    * on any review stored before the work paper existed.
@@ -233,6 +240,207 @@ export interface ReviewDetail {
    */
   not_yet_run: string[];
 }
+
+/* -------------------------------------------------------------------------- */
+/*  The entry recalculation work paper                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * What a declared input is measured in. Stated by the business, never inferred.
+ */
+export type RecalcUnit = 'currency' | 'days' | 'months' | 'currency_per_day' | 'rate' | 'count';
+
+/** Why one record is on the work paper. The three are acted on differently. */
+export type DiscrepancyKind = 'stated_differs' | 'input_missing' | 'stated_missing';
+
+export type BookedMethod = 'posting_debits' | 'stated_fact';
+
+/** One number a citation rests on, and the cell it was read from. */
+export interface CitedValue {
+  /** The name the approved formula refers to it by. */
+  id: string;
+  /** The column header, as the preparer wrote it. */
+  label: string;
+  /** e.g. `AB9`. Empty for a constant the business states rather than a column. */
+  cell: string;
+  value: string | null;
+  unit: RecalcUnit;
+}
+
+/** One record that did not reconcile, in the form a reviewer can act on. */
+export interface RecalcCitation {
+  row: number;
+  sheet: string;
+  kind: DiscrepancyKind;
+  /** `null` when an input was missing, so nothing was produced for the row. */
+  recomputed: string | null;
+  stated: string | null;
+  stated_cell: string;
+  difference: string | null;
+  difference_pct: number | null;
+  /** Why this row is here, written by code from the figures. Never by a model. */
+  why: string;
+  inputs: CitedValue[];
+  /** Ids of the inputs that did not resolve on this row. */
+  missing: string[];
+}
+
+/** One declared input, and what this particular workbook carries for it. */
+export interface RecalcInputReading {
+  id: string;
+  meaning: string;
+  unit: RecalcUnit;
+  source: string;
+  description: string;
+  /** Whether the formula cannot be evaluated without it. */
+  required: boolean;
+  bound: boolean;
+  column: string;
+  header: string;
+  rows_present: number;
+  rows_missing: number;
+}
+
+/** One term of the formula, totalled, so the recomputed figure comes apart. */
+export interface RecalcComponent {
+  id: string;
+  label: string;
+  expression: string;
+  /** The same expression with each input replaced by its column header. */
+  in_headers: string;
+  unit: RecalcUnit;
+  total: string;
+  rows_populated: number;
+  number_format: string | null;
+}
+
+/**
+ * A term re-performed from its inputs and compared, row by row, against the
+ * column the workbook computes for the same quantity.
+ *
+ * The strongest evidence the paper carries, and never the decisive one: it says
+ * a leg of the formula was performed the way the business states it, which is
+ * not the same claim as the entry reconciling.
+ */
+export interface RecalcCorroboration {
+  term: string;
+  against: string;
+  label: string;
+  rows_compared: number;
+  rows_agreeing: number;
+  impact: string;
+  first_example: string;
+  /** Every row compared and every one of them tied. Nothing less corroborates. */
+  agrees: boolean;
+}
+
+export interface BookedAmount {
+  method: BookedMethod;
+  /** `null` when it could not be read at all, which is not a pass. */
+  total: string | null;
+  description: string;
+  table: string;
+  sheet: string;
+  lines: number;
+  accounts: string[];
+}
+
+export interface RecalcBasis {
+  table: string;
+  sheet: string;
+  header_row: number;
+  first_row: number;
+  last_row: number;
+  /** The meaning that separates a record from the subtotal rows beneath it. */
+  record_key: string;
+  /** The column holding the workbook's own amount per record. */
+  stated_column: string;
+  stated_header: string;
+  /** As the entry type declares it. */
+  formula: string;
+  /** The same formula in the preparer's column names: a substitution, not a translation. */
+  formula_in_headers: string;
+  sign: string;
+  currency: string;
+  rounding: string;
+  day_count: string;
+  tolerance_pct: string;
+  tolerance_amount: string;
+  row_tolerance: string;
+  worked_example: string;
+  /**
+   * True until the business has signed the formula and the tolerance off. The
+   * UI must say so: a pass under a basis nobody has approved is not a pass.
+   */
+  provisional_basis: boolean;
+}
+
+/**
+ * The posted amount, regenerated from the inputs the business approved.
+ *
+ * Every figure here was produced by code from the workbook's own cells: the
+ * recomputed side by evaluating the approved formula over each record of the
+ * working, the booked side by summing the debit lines of the posted entry. Two
+ * readings of two different tables, which is what makes the difference between
+ * them mean something.
+ */
+export interface EntryRecalculation {
+  basis: RecalcBasis;
+  status: CheckStatus;
+  /** The outcome in a sentence, written by code from the figures. */
+  explanation: string;
+  recomputed_total: string;
+  booked: BookedAmount;
+  difference: string | null;
+  difference_pct: number | null;
+  /** `null` when there was nothing to compare, which is not a pass. */
+  within_tolerance: boolean | null;
+  rows_total: number;
+  rows_recomputed: number;
+  rows_incomplete: number;
+  rows_agreeing: number;
+  row_impact: string;
+  inputs: RecalcInputReading[];
+  components: RecalcComponent[];
+  corroborations: RecalcCorroboration[];
+  /** Worst first, capped for reading. `citation_count` is the full number. */
+  citations: RecalcCitation[];
+  citation_count: number;
+  notes: string[];
+  duration_ms: number;
+  /** Every record rebuilt. A partial recalculation can never support a pass. */
+  complete: boolean;
+  /** Regenerated to within tolerance, over every record. */
+  ties: boolean;
+}
+
+/** How each unit is worded beside an input. The unit itself comes from the server. */
+export const UNIT_LABELS: Record<RecalcUnit, string> = {
+  currency: 'Amount',
+  days: 'Days',
+  months: 'Months',
+  currency_per_day: 'Amount per day',
+  rate: 'Rate',
+  count: 'Count',
+};
+
+/**
+ * How each kind of discrepancy is worded.
+ *
+ * Never collapsed into "exception": an amount that differs is a finding, an
+ * input that is missing is a data gap, and a record the file states nothing for
+ * is neither — and a reviewer clears the three of them differently.
+ */
+export const DISCREPANCY_LABELS: Record<DiscrepancyKind, string> = {
+  stated_differs: 'Amount differs',
+  input_missing: 'Input missing',
+  stated_missing: 'Nothing stated',
+};
+
+export const BOOKED_METHOD_LABELS: Record<BookedMethod, string> = {
+  posting_debits: 'Debit side of the posted entry',
+  stated_fact: 'A control total the entry states',
+};
 
 /* -------------------------------------------------------------------------- */
 /*  The category split work paper                                             */

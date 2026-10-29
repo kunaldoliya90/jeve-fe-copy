@@ -33,6 +33,7 @@ import { CheckFacts, ReviewReasons } from './CheckFacts';
 import { ComplianceScore } from './ComplianceScore';
 import { CostBreakdown } from './CostBreakdown';
 import { EntryHeader } from './EntryHeader';
+import { EntryRecalculation } from './EntryRecalculation';
 import { EvidenceRegister } from './EvidenceRegister';
 import { NextSteps } from './NextSteps';
 import { Prose } from './Prose';
@@ -81,6 +82,9 @@ export function ReviewResult({ review }: ReviewResultProps) {
   // Always present, so it is the second number that moves with what precedes it:
   // 5 on a report carrying a register and parameters, lower on one that is not.
   const costIndex = number();
+  // The two work papers, in the order they are read: whether the posted amount
+  // can be produced again at all, and then what it is composed of.
+  const entryRecalcIndex = review.recalculation ? number() : 0;
   // The working behind the parameters, and the checks nobody could settle. Both
   // conditional, and both below the cost for that reason: a number taken by a
   // section that is sometimes absent cannot be quoted onward.
@@ -123,6 +127,12 @@ export function ReviewResult({ review }: ReviewResultProps) {
       <Reveal index={5}>
         <CostBreakdown review={review} index={costIndex} />
       </Reveal>
+
+      {review.recalculation ? (
+        <Reveal index={6}>
+          <EntryRecalculation review={review} index={entryRecalcIndex} />
+        </Reveal>
+      ) : null}
 
       {review.split_summary ? (
         <Reveal index={6}>

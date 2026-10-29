@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import { renderWithProviders, screen, within } from '@/testing/test-utils';
 
-import type { AreaView, CheckView, EvidenceView, ReviewDetail, SplitSummary } from '../types';
+import type {
+  AreaView,
+  CheckView,
+  EntryRecalculation,
+  EvidenceView,
+  ReviewDetail,
+  SplitSummary,
+} from '../types';
 import { ReviewResult } from './ReviewResult';
 
 function review(overrides: Partial<ReviewDetail> = {}): ReviewDetail {
@@ -33,6 +40,7 @@ function review(overrides: Partial<ReviewDetail> = {}): ReviewDetail {
     areas: [],
     observations: [],
     evidence: [],
+    recalculation: null,
     split_summary: null,
     needs_person: [],
     next_steps: [],
@@ -92,6 +100,62 @@ function evidence(overrides: Partial<EvidenceView> = {}): EvidenceView {
  * Spelled the way a French workbook spells it and not the way any module does,
  * so a label leaking into the component would show up here rather than passing.
  */
+function rebuild(overrides: Partial<EntryRecalculation> = {}): EntryRecalculation {
+  return {
+    basis: {
+      table: 'calculation',
+      sheet: 'GPAY',
+      header_row: 8,
+      first_row: 9,
+      last_row: 2467,
+      record_key: 'employee_ref',
+      stated_column: 'AH',
+      stated_header: 'TOTAL ACCRUAL',
+      formula: 'fte_amount + non_fte_amount',
+      formula_in_headers: 'FTE Vacation Accrual + Non-FTE Vacation Accrual',
+      sign: '',
+      currency: 'EUR',
+      rounding: '2 decimal places, half up',
+      day_count: '',
+      tolerance_pct: '0.1',
+      tolerance_amount: '27905.81',
+      row_tolerance: '0.01',
+      worked_example: '',
+      provisional_basis: false,
+    },
+    status: 'pass',
+    explanation: 'Rebuilt from 2,273 of 2,273 records.',
+    recomputed_total: '27905812.64',
+    booked: {
+      method: 'posting_debits',
+      total: '27905812.64',
+      description: 'the debit side of the posted entry',
+      table: 'je_posting',
+      sheet: 'Batch JE',
+      lines: 422,
+      accounts: ['720008'],
+    },
+    difference: '0.00',
+    difference_pct: 0,
+    within_tolerance: true,
+    rows_total: 2273,
+    rows_recomputed: 2273,
+    rows_incomplete: 0,
+    rows_agreeing: 2273,
+    row_impact: '0',
+    inputs: [],
+    components: [],
+    corroborations: [],
+    citations: [],
+    citation_count: 0,
+    notes: [],
+    duration_ms: 24,
+    complete: true,
+    ties: true,
+    ...overrides,
+  };
+}
+
 function workPaper(overrides: Partial<SplitSummary> = {}): SplitSummary {
   return {
     basis: {
@@ -358,6 +422,29 @@ describe('the worklist', () => {
   });
 
   /**
+   * Both work papers, in the order they are read: whether the posted amount can
+   * be produced again at all, and then what that amount is composed of.
+   */
+  it('numbers the two work papers in reading order', () => {
+    renderWithProviders(
+      <ReviewResult
+        review={review({
+          areas: [area()],
+          recalculation: rebuild(),
+          split_summary: workPaper(),
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole('region', { name: /^5 The posted amount, rebuilt from its inputs/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: /^6 Independent recalculation/ }),
+    ).toBeInTheDocument();
+  });
+
+  /**
    * The numbers are how one person says "look at four" to another, so a report
    * whose sections run 3, 5, 6 reads as one with a section missing.
    *
@@ -370,12 +457,14 @@ describe('the worklist', () => {
     ['nothing conditional present', review()],
     ['a worklist only', review({ needs_person: [waiting] })],
     ['an evidence register only', review({ evidence: [evidence()] })],
-    ['a recalculation only', review({ split_summary: workPaper() })],
+    ['a split work paper only', review({ split_summary: workPaper() })],
+    ['a rebuilt entry only', review({ recalculation: rebuild() })],
     [
       'all of them',
       review({
         needs_person: [waiting],
         evidence: [evidence()],
+        recalculation: rebuild(),
         split_summary: workPaper(),
       }),
     ],
