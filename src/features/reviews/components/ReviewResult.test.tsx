@@ -113,6 +113,7 @@ function rebuild(overrides: Partial<EntryRecalculation> = {}): EntryRecalculatio
       stated_column: 'AH',
       stated_header: 'TOTAL ACCRUAL',
       formula: 'fte_amount + non_fte_amount',
+      formula_expanded: 'FTE Vacation Accrual + Non-FTE Vacation Accrual',
       formula_in_headers: 'FTE Vacation Accrual + Non-FTE Vacation Accrual',
       sign: '',
       currency: 'EUR',
