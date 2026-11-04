@@ -16,6 +16,7 @@ function check(overrides: Partial<CheckView> = {}): CheckView {
     exception_count: 0,
     financial_impact: null,
     cells: [],
+    samples: [],
     ...overrides,
   };
 }
