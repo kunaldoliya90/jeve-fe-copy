@@ -46,7 +46,7 @@ export function Section({ index, id, title, aside, children }: SectionProps) {
           id={`${id}-heading`}
           className="flex items-center gap-3 text-[0.9375rem] font-semibold text-foreground-strong"
         >
-          <span className="flex size-7 flex-none items-center justify-center rounded-pill bg-primary/10 font-mono text-xs font-semibold text-primary">
+          <span className="flex size-7 flex-none items-center justify-center rounded-pill bg-gradient-to-br from-primary to-primary-active font-mono text-xs font-semibold text-primary-foreground shadow-rest inset-shadow-2xs inset-shadow-white/20">
             {index}
           </span>
           {/* The space is load-bearing: without a whitespace node between

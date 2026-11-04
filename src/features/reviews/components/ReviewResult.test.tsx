@@ -77,6 +77,7 @@ function check(overrides: Partial<CheckView> = {}): CheckView {
     exception_count: 0,
     financial_impact: null,
     cells: [],
+    samples: [],
     ...overrides,
   };
 }
@@ -121,6 +122,7 @@ function rebuild(overrides: Partial<EntryRecalculation> = {}): EntryRecalculatio
       tolerance_amount: '27905.81',
       row_tolerance: '0.01',
       worked_example: '',
+      explained: null,
       provisional_basis: false,
     },
     status: 'pass',
@@ -148,10 +150,13 @@ function rebuild(overrides: Partial<EntryRecalculation> = {}): EntryRecalculatio
     corroborations: [],
     citations: [],
     citation_count: 0,
+    formula_findings: [],
+    formula_columns_audited: 5,
     notes: [],
     duration_ms: 24,
     complete: true,
     ties: true,
+    related_checks: [],
     ...overrides,
   };
 }
@@ -422,10 +427,12 @@ describe('the worklist', () => {
   });
 
   /**
-   * Both work papers, in the order they are read: whether the posted amount can
-   * be produced again at all, and then what that amount is composed of.
+   * The entry recalculation reads first, the cost sits directly after it, and
+   * the split work paper — what the recalculated amount is composed of —
+   * reads last: a reader wants the rebuilt amount in view before being told
+   * what establishing it cost, and the composition after both.
    */
-  it('numbers the two work papers in reading order', () => {
+  it('numbers the entry recalculation, the cost and the split work paper in reading order', () => {
     renderWithProviders(
       <ReviewResult
         review={review({
@@ -437,8 +444,9 @@ describe('the worklist', () => {
     );
 
     expect(
-      screen.getByRole('region', { name: /^5 The posted amount, rebuilt from its inputs/ }),
+      screen.getByRole('region', { name: /^4 The posted amount, rebuilt from its inputs/ }),
     ).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /^5 What this review cost/ })).toBeInTheDocument();
     expect(
       screen.getByRole('region', { name: /^6 Independent recalculation/ }),
     ).toBeInTheDocument();
@@ -646,7 +654,7 @@ describe('the tested parameters', () => {
 
     const card = screen.getByRole('article', { name: /Employee population/ });
     expect(within(card).getByText('99.9')).toBeInTheDocument();
-    expect(within(card).getByText('15% of the score')).toBeInTheDocument();
+    expect(within(card).getByText('15% weight')).toBeInTheDocument();
     expect(within(card).getByText('Fail')).toBeInTheDocument();
   });
 
@@ -854,25 +862,27 @@ describe('the evidence register', () => {
     expect(screen.queryByRole('region', { name: /evidence and validation register/ })).toBeNull();
   });
 
-  it('is section 2, above the score it qualifies', () => {
-    // Which layers arrived at all is the question asked first. A score read
-    // before that is settled is a score read without knowing how much of the
-    // file it was computed from.
+  it('is section 4, after the parameters it backs', () => {
+    // The score is the number read aloud in a meeting, so it comes first. The
+    // parameters a reviewer scores against follow it, and the register that
+    // backs those parameters with evidence comes after them in turn.
     renderWithProviders(
       <ReviewResult review={review({ evidence: [evidence()], areas: [area()] })} />,
     );
 
+    const score = screen.getByRole('region', { name: '2 Evidence-led compliance' });
+    const parameters = screen.getByRole('region', { name: '3 Key tested parameters' });
     const register = screen.getByRole('region', {
-      name: '2 Detailed evidence and validation register',
+      name: '4 Detailed evidence and validation register',
     });
-    const score = screen.getByRole('region', { name: '3 Evidence-led compliance' });
 
-    expect(register.compareDocumentPosition(score)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(score.compareDocumentPosition(parameters)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(parameters.compareDocumentPosition(register)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
-  it('hands 2 back to the score on a review that expected no evidence', () => {
-    // The register is conditional, so the number it would have taken cannot be
-    // left as a hole in the spine.
+  it('leaves the score at 2 on a review that expected no evidence', () => {
+    // The score is claimed first regardless, so a review with nothing to
+    // register still prints an unbroken spine rather than a hole at 2.
     renderWithProviders(<ReviewResult review={review({ areas: [area()] })} />);
 
     expect(screen.getByRole('region', { name: '2 Evidence-led compliance' })).toBeInTheDocument();

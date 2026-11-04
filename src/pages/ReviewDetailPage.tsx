@@ -8,7 +8,7 @@
  * lands, so the page is quick *and* cheap rather than one or the other.
  */
 
-import { AlertTriangle, ArrowLeft } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, UserRound } from 'lucide-react';
 import { Link, useParams } from 'react-router';
 
 import { PageLoader } from '@/components/common';
@@ -110,32 +110,43 @@ function Header({ review }: { review: ReviewDetail }) {
   const running = !isFinished(review.status);
 
   return (
-    <header className="animate-rise space-y-3">
+    <div className="animate-rise space-y-4">
       <BackLink />
 
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
-        <div className="min-w-0">
-          <h1 className="truncate text-2xl font-semibold text-foreground-strong sm:text-[1.75rem]">
-            {review.file_name || 'Review'}
-          </h1>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            <span className="font-mono">{review.review_id}</span>
-            {review.je_type_name ? <span>· {review.je_type_name}</span> : null}
-            {review.period ? <span>· {review.period}</span> : null}
-          </p>
-        </div>
+      <Card tone="feature" elevation="lift" className="hairline-top overflow-hidden p-5 sm:p-6">
+        <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+              Journal entry review
+            </p>
+            <h1 className="mt-1.5 truncate text-2xl font-semibold text-foreground-strong sm:text-[1.75rem]">
+              {review.file_name || 'Review'}
+            </h1>
+            <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              <span className="font-mono">{review.review_id}</span>
+              {review.je_type_name ? <span>· {review.je_type_name}</span> : null}
+              {review.period ? <span>· {review.period}</span> : null}
+            </p>
+          </div>
 
-        {running ? (
-          <Badge tone="primary" live>
-            In progress
-          </Badge>
-        ) : review.status === 'needs_review' ? (
-          <Badge tone="warning">Needs a person</Badge>
-        ) : review.status === 'completed' ? (
-          <Badge tone="success">Complete</Badge>
-        ) : null}
-      </div>
-    </header>
+          {running ? (
+            <Badge tone="primary" live>
+              In progress
+            </Badge>
+          ) : review.status === 'needs_review' ? (
+            <Badge tone="warning">
+              <UserRound aria-hidden="true" />
+              Needs a person
+            </Badge>
+          ) : review.status === 'completed' ? (
+            <Badge tone="success">
+              <CheckCircle2 aria-hidden="true" />
+              Complete
+            </Badge>
+          ) : null}
+        </header>
+      </Card>
+    </div>
   );
 }
 
@@ -143,9 +154,12 @@ function BackLink() {
   return (
     <Link
       to={paths.app.reviews.getHref()}
-      className="inline-flex press items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+      className="group duration-quick inline-flex press items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors ease-out-soft hover:text-foreground"
     >
-      <ArrowLeft aria-hidden="true" className="size-4" />
+      <ArrowLeft
+        aria-hidden="true"
+        className="duration-quick size-4 transition-transform ease-out-soft group-hover:-translate-x-0.5"
+      />
       All reviews
     </Link>
   );

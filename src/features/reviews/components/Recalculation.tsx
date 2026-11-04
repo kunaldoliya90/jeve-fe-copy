@@ -90,7 +90,7 @@ export function Recalculation({ review, index }: RecalculationProps) {
       }
     >
       <p className="-mt-1 mb-5 max-w-prose text-xs leading-relaxed text-muted-foreground">
-        Everything below was computed from the workbook's own cells by code alone — no model
+        Everything below was computed from the workbook's own cells by code alone, no model
         contributed a figure. The row titles are the headers the preparer wrote and the amounts are
         formatted the way the file formats them.
       </p>
@@ -129,7 +129,7 @@ export function Recalculation({ review, index }: RecalculationProps) {
             prefix="recalculation"
             letter="D"
             title="One row, traced"
-            note="Addressed by row number and nothing else. No name, no personnel reference — enough to open the file at the right line and follow the same arithmetic."
+            note="Addressed by row number and nothing else. No name, no personnel reference, just enough to open the file at the right line and follow the same arithmetic."
           >
             <Walkthroughs walkthroughs={paper.walkthroughs} />
           </Block>
@@ -245,7 +245,7 @@ function SplitMatrix({
 
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
         Each row's classes add up to its total exactly. Rows of the block that carry no class at all
-        are outside both — a block ends at a run of blank rows, so it reaches past the last record
+        are outside both: a block ends at a run of blank rows, so it reaches past the last record
         into the preparer's own subtotals, and adding those would count the column twice.
       </p>
     </>

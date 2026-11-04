@@ -4,6 +4,7 @@ export * from './components/ComplianceScore';
 export * from './components/CostBreakdown';
 export * from './components/EntryHeader';
 export * from './components/EvidenceRegister';
+export * from './components/RecalcRowsExplorer';
 export * from './components/Recalculation';
 export * from './components/ReviewList';
 export * from './components/ReviewPlan';

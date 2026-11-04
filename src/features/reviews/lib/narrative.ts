@@ -572,8 +572,8 @@ function finishedText(step: string, detail: Detail): string | null {
       const cited = readNumber(detail, 'citations') ?? 0;
       const where = cited > 0 ? ` ${plural(cited, 'record')} did not reconcile.` : '';
       return inside
-        ? `${from} against ${booked} posted — ${difference} apart, which is inside the tolerance the business agreed.${where}`
-        : `${from} against ${booked} posted — ${difference} apart, beyond the tolerance the business agreed.${where}`;
+        ? `${from} against ${booked} posted, ${difference} apart, which is inside the tolerance the business agreed.${where}`
+        : `${from} against ${booked} posted, ${difference} apart, beyond the tolerance the business agreed.${where}`;
     }
 
     case '13b': {

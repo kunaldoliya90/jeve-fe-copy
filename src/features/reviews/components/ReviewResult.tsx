@@ -6,10 +6,12 @@
  * that, what it cost to find out, and then the working behind it. The numbered
  * sections exist so one person can say "look at three" to another.
  *
- * The register sits above the score rather than below the parameters. What a
- * reviewer is asked first is which layers arrived at all, and a score read
- * before that question is settled is a score read without knowing how much of
- * the file it was computed from.
+ * The score sits directly under the entry, as section two on every report. It
+ * is the number read aloud in a meeting, so it is the first thing after
+ * identification rather than something a reader has to scroll past a register
+ * to reach. The evidence register follows immediately after it, so a reader
+ * who wants to check how much of the file that score was computed from finds
+ * it on the very next card.
  *
  * `not_yet_run` and `untraced_numbers` are first-class panels rather than
  * footnotes, and `untraced_numbers` sits directly under the summary it
@@ -54,8 +56,7 @@ interface ReviewResultProps {
  *
  * Section 1 — which entry this is — is on every report, so it numbers itself.
  * Everything below it is handed a number in reading order, the score included:
- * the register above it is conditional, so the score is 2 on a review with no
- * evidence and 3 on one with a register, and neither spine skips a number.
+ * the score is always 2, and the register, when there is one, is always 3.
  */
 const FIRST_ALLOCATED_SECTION = 2;
 
@@ -72,21 +73,27 @@ export function ReviewResult({ review }: ReviewResultProps) {
   // whole mechanism: a number is claimed by being asked for first.
   let next = FIRST_ALLOCATED_SECTION;
   const number = () => next++;
-  const evidenceIndex = review.evidence.length > 0 ? number() : 0;
-  // Always present, and still numbered here rather than at the call site: it is
-  // 2 or 3 depending on whether a register claimed 2 ahead of it.
+  // Always present and claimed first, so the score is 2 on every report.
   const scoreIndex = number();
-  // Conditional too, which is how a review with nothing scored came to print a
-  // spine reading 1, 2, 4.
+  // Conditional, and claimed second, so the parameters are 3 when there is
+  // something to score — which is how a review with nothing scored came to
+  // print a spine reading 1, 2, 4.
   const parametersIndex = review.areas.length > 0 || review.observations.length > 0 ? number() : 0;
-  // Always present, so it is the second number that moves with what precedes it:
-  // 5 on a report carrying a register and parameters, lower on one that is not.
-  const costIndex = number();
-  // The two work papers, in the order they are read: whether the posted amount
-  // can be produced again at all, and then what it is composed of.
+  // Claimed after the parameters: the register is what a reviewer checks the
+  // parameters' evidence against, not the other way round, and it is
+  // conditional in the same way — a review with no evidence simply drops down
+  // to fill the gap.
+  const evidenceIndex = review.evidence.length > 0 ? number() : 0;
+  // The first of the two work papers: whether the posted amount can be
+  // produced again at all. Claimed ahead of the cost on purpose — a reader
+  // wants the arithmetic before the metered total of producing it.
   const entryRecalcIndex = review.recalculation ? number() : 0;
-  // The working behind the parameters, and the checks nobody could settle. Both
-  // conditional, and both below the cost for that reason: a number taken by a
+  // Always present, so it is the number that moves with everything above it:
+  // 6 on a report carrying a register, parameters and a recalculation, lower
+  // on one that is missing any of them.
+  const costIndex = number();
+  // What the recalculation is composed of. Conditional, and below the cost
+  // for the same reason the recalculation is above it: a number taken by a
   // section that is sometimes absent cannot be quoted onward.
   const splitIndex = review.split_summary ? number() : 0;
   const needsPersonIndex = review.needs_person.length > 0 ? number() : 0;
@@ -103,36 +110,36 @@ export function ReviewResult({ review }: ReviewResultProps) {
         <EntryHeader review={review} />
       </Reveal>
 
-      {review.evidence.length > 0 ? (
-        <Reveal index={1}>
-          <EvidenceRegister review={review} index={evidenceIndex} />
-        </Reveal>
-      ) : null}
-
-      <Reveal index={2}>
+      <Reveal index={1}>
         <ComplianceScore review={review} index={scoreIndex} />
       </Reveal>
 
       {/* Directly under the summary it qualifies, wherever that summary sits. */}
       {review.untraced_numbers.length > 0 ? (
-        <Reveal index={3}>
+        <Reveal index={2}>
           <UntracedNumbers numbers={review.untraced_numbers} />
         </Reveal>
       ) : null}
 
-      <Reveal index={4}>
+      <Reveal index={3}>
         <TestedParameters review={review} index={parametersIndex} />
       </Reveal>
 
-      <Reveal index={5}>
-        <CostBreakdown review={review} index={costIndex} />
-      </Reveal>
+      {review.evidence.length > 0 ? (
+        <Reveal index={4}>
+          <EvidenceRegister review={review} index={evidenceIndex} />
+        </Reveal>
+      ) : null}
 
       {review.recalculation ? (
-        <Reveal index={6}>
+        <Reveal index={5}>
           <EntryRecalculation review={review} index={entryRecalcIndex} />
         </Reveal>
       ) : null}
+
+      <Reveal index={6}>
+        <CostBreakdown review={review} index={costIndex} />
+      </Reveal>
 
       {review.split_summary ? (
         <Reveal index={6}>

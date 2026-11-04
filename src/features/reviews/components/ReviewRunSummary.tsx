@@ -74,7 +74,14 @@ export function ReviewRunSummary({ review }: { review: ReviewDetail }) {
         <p className="mt-4 text-xs leading-relaxed text-subtle-foreground">
           The step-by-step trace is kept only while a review is running, so it is not available for
           this one. Nothing is missing from the result itself: the report below is the stored
-          record, and section 5 breaks the cost down by step.
+          record, and{' '}
+          <a
+            href="#cost"
+            className="press font-medium text-primary underline-offset-4 hover:underline"
+          >
+            what this review cost
+          </a>{' '}
+          breaks the spend down by step.
         </p>
       )}
     </Card>

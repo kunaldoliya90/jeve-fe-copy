@@ -82,6 +82,22 @@ export interface WorkbookView {
   lineage: string[];
 }
 
+/**
+ * One worked example behind a check's conclusion: a row the check actually looked at.
+ *
+ * Not every tool's sample carries every field — a row-level re-performance has all
+ * five, a tool comparing something else (an account, a posting date) has fewer — so
+ * a field a given sample does not carry arrives as `null` rather than forcing a shape
+ * no tool actually has.
+ */
+export interface FigureSampleView {
+  row: number | null;
+  cell: string | null;
+  expected: string | null;
+  actual: string | null;
+  difference: string | null;
+}
+
 export interface CheckView {
   check_id: string;
   area: string;
@@ -94,6 +110,8 @@ export interface CheckView {
   exception_count: number;
   financial_impact: string | null;
   cells: string[];
+  /** Worst-first, the rows behind the conclusion — the same ones `cells` is made from. */
+  samples: FigureSampleView[];
 }
 
 export interface AreaView {
@@ -285,6 +303,71 @@ export interface RecalcCitation {
   missing: string[];
 }
 
+/**
+ * One row also cited by a different check that reads this same table.
+ *
+ * Merged in by row number from that check's own (already worst-first, capped) citations. A
+ * row with no flag here may still differ on that check if its citation list was capped
+ * before reaching this row — that check's own `citation_count` on `RelatedRecalcCheck`, not
+ * this, is where the full count lives.
+ */
+export interface RowFlag {
+  check_id: string;
+  label: string;
+  cell: string;
+  expected: string | null;
+  actual: string | null;
+  difference: string | null;
+  why: string;
+}
+
+/**
+ * One record of the full recalculation pass — not just the worst twelve.
+ *
+ * `RecalcCitation` above exists to be printed, so the server keeps only a bounded, worst-first
+ * sample of them. This exists to be browsed: every record, paged and grouped from the
+ * `/recalculation/rows/` and `/recalculation/groups/` endpoints. The same no-employee-reference
+ * rule applies here as everywhere else in this work paper — a row number, nothing more.
+ */
+export interface RecalcRow {
+  row: number;
+  /** Grouping dimension -> its value on this row, e.g. `{ cost_center: 'CC100' }`. */
+  group: Record<string, string>;
+  recomputed: string | null;
+  stated: string | null;
+  stated_cell: string;
+  difference: string | null;
+  difference_pct: number | null;
+  /** `null` when the row agrees within tolerance. */
+  kind: DiscrepancyKind | null;
+  inputs: CitedValue[];
+  /** Each derived term's own value on this row, same shape as an input. */
+  terms: CitedValue[];
+  /** Citations from other checks reading this same table, merged in by row. */
+  flags: RowFlag[];
+}
+
+/** One page of a recalculation's rows, in whatever filter and order were asked for. */
+export interface RecalcRowPage {
+  rows: RecalcRow[];
+  /** Rows matching the filter, before paging. */
+  total: number;
+  /** Pass back as the `cursor` param to fetch the next page. `null` on the last page. */
+  next_cursor: string | null;
+}
+
+/** One distinct value of a grouping dimension, rolled up from the rows inside it. */
+export interface RecalcGroupSummary {
+  /** The dimension's value, e.g. a cost centre. Empty string when a row carried none. */
+  value: string;
+  rows: number;
+  /** Rows in this group carrying a finding. */
+  flagged: number;
+  recomputed_total: string;
+  stated_total: string;
+  difference: string;
+}
+
 /** One declared input, and what this particular workbook carries for it. */
 export interface RecalcInputReading {
   id: string;
@@ -334,6 +417,27 @@ export interface RecalcCorroboration {
   agrees: boolean;
 }
 
+/**
+ * Another check that reads the same table as the entry recalculation, surfaced beside it.
+ *
+ * A different formula is a different question, so this is never merged into the entry-level
+ * comparison above — but a reviewer reading "the records rebuilt" is owed every other
+ * arithmetic finding on these same records, not just this one formula's. `citations` reuses
+ * `RecalcCitation`, the identical Row/Cell/Recomputed/Stated/Difference shape Block C below
+ * already renders.
+ */
+export interface RelatedRecalcCheck {
+  check_id: string;
+  /** The check's own question, for a reader's header. */
+  label: string;
+  /** The check's own conclusion, written by code. */
+  summary: string;
+  /** Worst first, capped the same way this check capped them for itself. */
+  citations: RecalcCitation[];
+  /** Rows this check found differing, in full. */
+  citation_count: number;
+}
+
 export interface BookedAmount {
   method: BookedMethod;
   /** `null` when it could not be read at all, which is not a pass. */
@@ -343,6 +447,28 @@ export interface BookedAmount {
   sheet: string;
   lines: number;
   accounts: string[];
+}
+
+export interface RecalcExplainedStep {
+  label: string;
+  detail: string;
+  /** That step, carried out on the same fixed example throughout. */
+  example: string;
+}
+
+/**
+ * The formula walked through in plain language, for a reader who has never seen it.
+ *
+ * Fixed and business-authored, like `RecalcBasis.worked_example` beside it - never
+ * recomputed from this particular review, so it reads the same on every review of this
+ * entry type.
+ */
+export interface RecalcExplained {
+  intro: string;
+  context: string;
+  steps: RecalcExplainedStep[];
+  summary: string;
+  caveats: string[];
 }
 
 export interface RecalcBasis {
@@ -368,6 +494,8 @@ export interface RecalcBasis {
   tolerance_amount: string;
   row_tolerance: string;
   worked_example: string;
+  /** `null` for a JE type that has not had this walkthrough written for it yet. */
+  explained: RecalcExplained | null;
   /**
    * True until the business has signed the formula and the tolerance off. The
    * UI must say so: a pass under a basis nobody has approved is not a pass.
@@ -406,13 +534,85 @@ export interface EntryRecalculation {
   /** Worst first, capped for reading. `citation_count` is the full number. */
   citations: RecalcCitation[];
   citation_count: number;
+  /**
+   * Faults in the workbook's own arithmetic, found after the rebuild.
+   *
+   * The one of these a figure cannot hide is `different_inputs`: a column built from the
+   * wrong columns still produces the right total on every record where the missing input
+   * happens to be zero, so the entry reconciles and every other check passes.
+   */
+  formula_findings: FormulaFinding[];
+  /**
+   * Columns whose formulas were examined. `0` means the audit could not run, which is not
+   * the same as finding nothing wrong — the UI must not render those alike.
+   */
+  formula_columns_audited: number;
   notes: string[];
   duration_ms: number;
   /** Every record rebuilt. A partial recalculation can never support a pass. */
   complete: boolean;
   /** Regenerated to within tolerance, over every record. */
   ties: boolean;
+  /**
+   * Other checks that read this same table, surfaced beside the entry-level comparison
+   * above. Never merged into `recomputed_total`/`difference` — a different formula is a
+   * different question.
+   */
+  related_checks: RelatedRecalcCheck[];
 }
+
+/**
+ * What is wrong with a formula the workbook applies.
+ *
+ * None of these is a reading of what the formula *meant*: the server neither evaluates
+ * Excel nor judges intent. Each is a structural fact about cells.
+ */
+export type FormulaFault =
+  'not_calculated' | 'inconsistent' | 'typed_over' | 'different_inputs' | 'unreadable';
+
+export interface FormulaFinding {
+  fault: FormulaFault;
+  sheet: string;
+  column: string;
+  /** The column's header, as the preparer wrote it. */
+  header: string;
+  /** Where to open the file. */
+  cell: string;
+  /** The formula as written in that cell. */
+  formula: string;
+  /** The same formula with each reference replaced by the header of the column it reads. */
+  in_headers: string;
+  /** The approved arithmetic in the same form. Empty where the business declares none. */
+  expected: string;
+  rows_affected: number;
+  rows_checked: number;
+  /** What it means for the review, in a sentence written by code. */
+  why: string;
+}
+
+/**
+ * How each fault is worded, and how it is weighted.
+ *
+ * `not_calculated` is deliberately not an error: a workbook whose figures arrive from a
+ * payroll extract is the normal case for this entry type, and the finding is a limit of the
+ * evidence rather than a defect. `different_inputs` is the serious one — it is the only
+ * fault here that a figure which ties cannot hide.
+ */
+export const FORMULA_FAULT_LABELS: Record<FormulaFault, string> = {
+  different_inputs: 'Wrong inputs',
+  inconsistent: 'Inconsistent down the column',
+  typed_over: 'Typed over the formula',
+  not_calculated: 'Not calculated in this file',
+  unreadable: 'Formulas could not be read',
+};
+
+export const FORMULA_FAULT_TONE: Record<FormulaFault, 'danger' | 'warning' | 'neutral'> = {
+  different_inputs: 'danger',
+  inconsistent: 'warning',
+  typed_over: 'warning',
+  not_calculated: 'neutral',
+  unreadable: 'neutral',
+};
 
 /** How each unit is worded beside an input. The unit itself comes from the server. */
 export const UNIT_LABELS: Record<RecalcUnit, string> = {
@@ -654,16 +854,32 @@ export interface JETypeView {
   figures_decided: number;
 }
 
-/** Human labels for the area keys the context file uses. */
+/**
+ * Human labels for the area keys the context file uses.
+ *
+ * `evidence_appropriateness`, `calculation_accuracy`, `pii` and `trend` are the
+ * four areas the six-parameter model (version 7 of the vacation accrual
+ * context) introduced. The five they replaced — `population`, `classification`,
+ * `salary_validation`, `leave_validation` and `je_reconciliation` — stay in
+ * this map rather than being deleted: a review is written once and never
+ * updated, so a record stored under an earlier version of the context still
+ * carries those keys forever, and this is the only place that renders them.
+ */
 export const AREA_LABELS: Record<string, string> = {
   evidence_completeness: 'Evidence completeness',
+  evidence_appropriateness: 'Evidence appropriateness',
+  calculation_accuracy: 'Calculation accuracy',
+  pii: 'PII assessment',
+  trend: 'Trend analysis',
+  period: 'Period',
+  // Superseded by `calculation_accuracy` — kept for reviews stored before the
+  // six-parameter model.
   population: 'Employee population',
   classification: 'FTE / non-FTE classification',
   salary_validation: 'Salary validation',
   leave_validation: 'Leave balance validation',
   accrual_reperformance: 'Accrual re-performance',
   je_reconciliation: 'Journal entry reconciliation',
-  period: 'Period and cut-off',
 };
 
 /**
@@ -705,6 +921,7 @@ export const AI_CALL_LABELS: Record<string, string> = {
   'AI-M': 'Methodology reading',
   'AI-R': 'Screenshot reading',
   'AI-X': 'Exception grouping',
+  'AI-E': 'Evidence appropriateness',
 };
 
 export const RISK_LABELS: Record<RiskRating, string> = {

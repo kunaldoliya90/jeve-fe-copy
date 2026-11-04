@@ -521,7 +521,7 @@ describe('the entry recalculation on the stream', () => {
         }),
       ),
     ).toBe(
-      'Rebuilt the entry from 2,280 records: 28,672,591.24 against 28,500,000.00 posted — 172,591.24 apart, beyond the tolerance the business agreed. 3 records did not reconcile.',
+      'Rebuilt the entry from 2,280 records: 28,672,591.24 against 28,500,000.00 posted, 172,591.24 apart, beyond the tolerance the business agreed. 3 records did not reconcile.',
     );
   });
 
