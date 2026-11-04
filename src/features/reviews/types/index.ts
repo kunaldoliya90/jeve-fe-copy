@@ -389,9 +389,15 @@ export interface RecalcInputReading {
 /** One term of the formula, totalled, so the recomputed figure comes apart. */
 export interface RecalcComponent {
   id: string;
+  /** A short name for the stage, as the business declared it. */
   label: string;
+  /** What the stage is and why, in the business's own words. May be empty. */
+  description: string;
   expression: string;
-  /** The same expression with each input replaced by its column header. */
+  /**
+   * The same expression with every name replaced by the one a reader sees it as: an
+   * input by the header the preparer wrote, an earlier stage by its own label.
+   */
   in_headers: string;
   unit: RecalcUnit;
   total: string;
@@ -486,6 +492,12 @@ export interface RecalcBasis {
   stated_header: string;
   /** As the entry type declares it. */
   formula: string;
+  /**
+   * The formula with every derived stage written out, down to the columns themselves, in
+   * the headers this workbook uses. The form that shows which columns the arithmetic
+   * actually reads, since a stage name hides the columns behind it.
+   */
+  formula_expanded: string;
   /** The same formula in the preparer's column names: a substitution, not a translation. */
   formula_in_headers: string;
   sign: string;

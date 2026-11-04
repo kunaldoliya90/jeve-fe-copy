@@ -22,8 +22,10 @@ function basis(overrides: Partial<EntryRecalculationData['basis']> = {}) {
     record_key: 'employee_ref',
     stated_column: 'AH',
     stated_header: 'TOTAL ACCRUAL',
-    formula: 'fte_amount + non_fte_amount',
-    formula_in_headers: 'FTE Vacation Accrual + Non-FTE Vacation Accrual',
+    formula: 'cp_provision + rtt_amount / 12',
+    formula_expanded:
+      'Total Provision CP + ((max(Acquis RTT - Pris RTT, 0)) * Daily Salary (RTT Rate)) / 12',
+    formula_in_headers: 'Total Provision CP + Rebuilt RTT accrual / 12',
     sign: 'a positive amount is a debit to the expense accounts',
     currency: 'EUR',
     rounding: '2 decimal places, half up',
@@ -114,10 +116,22 @@ function paper(overrides: Partial<EntryRecalculationData> = {}): EntryRecalculat
     ],
     components: [
       {
+        id: 'unused_rtt_days',
+        label: 'Unused RTT days',
+        description: 'Days earned so far less days taken, floored at zero.',
+        expression: 'max(earned_rtt_days - rtt_days_taken, 0)',
+        in_headers: 'max(RTT days earned - Pris RTT, 0)',
+        unit: 'days',
+        total: '2666.89',
+        rows_populated: 2280,
+        number_format: null,
+      },
+      {
         id: 'rtt_amount',
-        label: 'RTT accrual, re-performed',
-        expression: 'max(rtt_days, 0) * daily_rate',
-        in_headers: 'max(Balance RTT Days, 0) * Daily Salary',
+        label: 'Rebuilt RTT accrual',
+        description: '',
+        expression: 'unused_rtt_days * daily_rate',
+        in_headers: 'Unused RTT days * Daily Salary',
         unit: 'currency',
         total: '1051306.59',
         rows_populated: 2280,
@@ -387,12 +401,32 @@ describe('EntryRecalculation', () => {
     expect(screen.getByText('Unproven')).toBeInTheDocument();
   });
 
-  it('shows the formula in the headers the preparer wrote', () => {
+  /**
+   * The expanded form leads. A staged formula names a stage, and a stage has no column, so
+   * "Rebuilt RTT accrual / 12" reads as though the figure were still being lifted straight
+   * out of the workbook rather than rebuilt from four of its columns. The columns have to be
+   * the thing on the page.
+   */
+  it('leads with the formula written out in the columns this workbook uses', () => {
     render(paper());
 
-    expect(screen.getByText('FTE Vacation Accrual + Non-FTE Vacation Accrual')).toBeInTheDocument();
-    expect(screen.getByText(/as declared: fte_amount \+ non_fte_amount/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Total Provision CP + ((max(Acquis RTT - Pris RTT, 0)) * Daily Salary (RTT Rate)) / 12',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/in stages: Total Provision CP \+ Rebuilt RTT accrual \/ 12/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/as declared: cp_provision \+ rtt_amount \/ 12/i)).toBeInTheDocument();
     expect(screen.getByText(/TOTAL ACCRUAL/)).toBeInTheDocument();
+  });
+
+  it('falls back to the staged formula where nothing could be expanded', () => {
+    render(paper({ basis: { ...paper().basis, formula_expanded: '' } }));
+
+    expect(screen.getByText('Total Provision CP + Rebuilt RTT accrual / 12')).toBeInTheDocument();
+    expect(screen.queryByText(/in stages:/i)).not.toBeInTheDocument();
   });
 
   it('renders nothing extra for the plain-language walkthrough when none is declared', () => {
@@ -509,6 +543,23 @@ describe('EntryRecalculation', () => {
     expect(within(table).getByText('RTT Accrual Amount')).toBeInTheDocument();
     expect(within(table).getByText('2,280')).toBeInTheDocument();
     expect(within(table).getByText('None')).toBeInTheDocument();
+  });
+
+  /**
+   * The formula is declared in stages, so a reader following it needs each stage's own
+   * name and arithmetic. Both come from the business file: the short label heads the row
+   * and the sentence sits under it, because a sentence in a column heading is neither.
+   */
+  it('names each stage of the formula and shows its arithmetic in the preparers columns', () => {
+    render(paper());
+
+    const table = screen.getByRole('table', { name: /each stage of the formula/i });
+    expect(within(table).getByText('Unused RTT days')).toBeInTheDocument();
+    expect(within(table).getByText('Rebuilt RTT accrual')).toBeInTheDocument();
+    expect(within(table).getByText(/Days earned so far less days taken/)).toBeInTheDocument();
+    // An earlier stage is named by its own label, never by the id the engine knows it as.
+    expect(within(table).getByText('max(RTT days earned - Pris RTT, 0)')).toBeInTheDocument();
+    expect(within(table).getByText('Unused RTT days * Daily Salary')).toBeInTheDocument();
   });
 
   it('carries the basis a reviewer needs before any figure means anything', () => {

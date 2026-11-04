@@ -80,9 +80,9 @@ interface BlockLetters {
 const BLOCK_ORDER: (keyof BlockLetters)[] = [
   'formula',
   'citations',
-  'inputs',
   'related',
   'browse',
+  'inputs',
   'corroborations',
   'faults',
 ];
@@ -168,15 +168,6 @@ export function EntryRecalculation({ review, index }: EntryRecalculationProps) {
           <Citations paper={paper} />
         </Block>
 
-        <Block
-          prefix="entry-recalculation"
-          letter={letters.inputs}
-          title="What it was rebuilt from"
-          note="A record an input does not resolve on is reported rather than recomputed as though the input were zero - that substitution is what turns a data gap into a confident wrong number."
-        >
-          <Inputs inputs={paper.inputs} records={paper.rows_total} />
-        </Block>
-
         {paper.related_checks.length > 0 ? (
           <Block
             prefix="entry-recalculation"
@@ -195,6 +186,15 @@ export function EntryRecalculation({ review, index }: EntryRecalculationProps) {
           note={`Block ${letters.citations} above is a worst-first sample, capped to fit a printed page. This is the full set behind it: every record, filterable, sortable and grouped your way, including a row any other check here flagged. It is a screen tool rather than part of the printed report, for the same reason — a server-paginated grid cannot print in full.`}
         >
           <RecalcRowsExplorer reviewId={review.review_id} />
+        </Block>
+
+        <Block
+          prefix="entry-recalculation"
+          letter={letters.inputs}
+          title="What it was rebuilt from"
+          note="A record an input does not resolve on is reported rather than recomputed as though the input were zero - that substitution is what turns a data gap into a confident wrong number."
+        >
+          <Inputs inputs={paper.inputs} records={paper.rows_total} />
         </Block>
 
         {paper.corroborations.length > 0 ? (
@@ -415,11 +415,22 @@ function Formula({ paper }: { paper: EntryRecalculationData }) {
         <p className="text-[10px] font-medium tracking-[0.08em] text-muted-foreground uppercase">
           Per record
         </p>
-        <p className="mt-1.5 font-mono text-sm leading-relaxed text-pretty text-foreground-strong">
-          {basis.formula_in_headers || basis.formula}
+        {/*
+         * The expanded form leads, because it is the only one that names the columns. The
+         * staged form reads better but a stage has no column, so "Rebuilt RTT accrual / 12"
+         * tells a reviewer nothing about the four columns behind it - and reads as though
+         * the figure were still being lifted straight out of the workbook.
+         */}
+        <p className="mt-1.5 font-mono text-sm leading-relaxed text-pretty break-words text-foreground-strong">
+          {basis.formula_expanded || basis.formula_in_headers || basis.formula}
         </p>
+        {basis.formula_expanded && basis.formula_expanded !== basis.formula_in_headers ? (
+          <p className="mt-2 font-mono text-[11px] leading-relaxed break-words text-subtle-foreground">
+            In stages: {basis.formula_in_headers}
+          </p>
+        ) : null}
         {basis.formula_in_headers && basis.formula_in_headers !== basis.formula ? (
-          <p className="mt-2 font-mono text-[11px] leading-relaxed text-subtle-foreground">
+          <p className="mt-1 font-mono text-[11px] leading-relaxed break-words text-subtle-foreground">
             As declared: {basis.formula}
           </p>
         ) : null}
@@ -532,7 +543,14 @@ function Components({ items }: { items: RecalcComponent[] }) {
       <tbody>
         {items.map((item) => (
           <Tr key={item.id}>
-            <Td className="font-medium text-foreground">{item.label || item.id}</Td>
+            <Td>
+              <span className="font-medium text-foreground">{item.label || item.id}</span>
+              {item.description ? (
+                <span className="mt-0.5 block max-w-prose text-xs leading-relaxed text-muted-foreground">
+                  {item.description}
+                </span>
+              ) : null}
+            </Td>
             <Td className="font-mono text-[11px]">{item.in_headers || item.expression}</Td>
             <Td className="text-right tabular-nums">{item.rows_populated.toLocaleString()}</Td>
             <Td className="text-right font-medium text-foreground tabular-nums">
