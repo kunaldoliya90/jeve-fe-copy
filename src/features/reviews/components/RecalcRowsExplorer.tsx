@@ -61,7 +61,7 @@ export function RecalcRowsExplorer({ reviewId }: { reviewId: string }) {
   }
 
   const rows = useRecalculationRows(groupBy ? undefined : reviewId, {
-    status: filterStatus,
+    ...(filterStatus ? { status: filterStatus } : {}),
     sort,
     limit: PAGE_SIZE,
     cursor,
