@@ -461,3 +461,131 @@ describe('formatBytes', () => {
     expect(formatBytes(0)).toBe('0 KB');
   });
 });
+
+/**
+ * Step 13c: the one step whose size is worth saying before it starts, and whose
+ * outcome is the figure a reviewer came for.
+ */
+describe('the entry recalculation on the stream', () => {
+  it('says how many records it is about to rebuild', () => {
+    expect(
+      text(event({ step: '13c', name: 'Rebuilding the entry', detail: { rows: 37613 } })),
+    ).toBe('Rebuilding the entry from its own inputs: 37,613 records to re-add');
+  });
+
+  it('falls back to the plain activity when the server sends no row count', () => {
+    expect(text(event({ step: '13c', name: 'Rebuilding the entry' }))).toBe(
+      'Rebuilding the entry from its own inputs',
+    );
+  });
+
+  it('says the entry rebuilt to the amount that was posted, to the cent', () => {
+    expect(
+      text(
+        event({
+          event: 'step_finished',
+          step: '13c',
+          detail: {
+            rows: 2280,
+            rows_recomputed: 2280,
+            recomputed: '28672591.24',
+            booked: '28672591.24',
+            difference: '0.00',
+            within_tolerance: true,
+            status: 'pass',
+            citations: 0,
+          },
+        }),
+      ),
+    ).toBe(
+      'Rebuilt the entry from 2,280 records: 28,672,591.24, which is the 28,672,591.24 that was actually posted, to the cent.',
+    );
+  });
+
+  it('says how far out it is, and that it is beyond the agreed tolerance', () => {
+    expect(
+      text(
+        event({
+          event: 'step_finished',
+          step: '13c',
+          detail: {
+            rows: 2280,
+            rows_recomputed: 2280,
+            recomputed: '28672591.24',
+            booked: '28500000.00',
+            difference: '172591.24',
+            within_tolerance: false,
+            status: 'fail',
+            citations: 3,
+          },
+        }),
+      ),
+    ).toBe(
+      'Rebuilt the entry from 2,280 records: 28,672,591.24 against 28,500,000.00 posted, 172,591.24 apart, beyond the tolerance the business agreed. 3 records did not reconcile.',
+    );
+  });
+
+  it('distinguishes a difference inside the agreed tolerance', () => {
+    expect(
+      text(
+        event({
+          event: 'step_finished',
+          step: '13c',
+          detail: {
+            rows_recomputed: 100,
+            recomputed: '1000.50',
+            booked: '1000.00',
+            difference: '0.50',
+            within_tolerance: true,
+            status: 'partial',
+            citations: 0,
+          },
+        }),
+      ),
+    ).toContain('inside the tolerance the business agreed');
+  });
+
+  /**
+   * A booked side that could not be read is a gap in the evidence, not a
+   * difference of nothing. The line has to say which.
+   */
+  it('says the recomputation stands on its own when there is nothing to compare', () => {
+    expect(
+      text(
+        event({
+          event: 'step_finished',
+          step: '13c',
+          detail: {
+            rows_recomputed: 2280,
+            recomputed: '28672591.24',
+            booked: null,
+            difference: null,
+            within_tolerance: null,
+            status: 'unable_to_validate',
+          },
+        }),
+      ),
+    ).toBe(
+      'Rebuilt the entry from 2,280 records: 28,672,591.24. There is nothing on the file to compare it against, so it stands on its own.',
+    );
+  });
+
+  it('says plainly when the entry could not be rebuilt at all', () => {
+    expect(
+      text(
+        event({
+          event: 'step_finished',
+          step: '13c',
+          detail: { status: 'unable_to_validate', rows: 0 },
+        }),
+      ),
+    ).toContain('could not be rebuilt');
+  });
+
+  it('rolls up into the phase that runs the checks', () => {
+    const running = phase([event({ step: '13c', detail: { rows: 10 } })], 'checks');
+
+    expect(running.state).toBe('active');
+    expect(STEP_LABELS['13c']).toBe('Rebuilding the entry');
+  });
+});

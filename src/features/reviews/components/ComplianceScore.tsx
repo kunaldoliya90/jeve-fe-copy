@@ -75,7 +75,7 @@ function Gauge({
   const filled = (Math.min(Math.max(score, 0), 100) / 100) * SEMICIRCLE;
 
   return (
-    <figure className="flex flex-col rounded-card border border-border bg-surface p-4 shadow-rest">
+    <figure className="hairline-top flex flex-col rounded-card border border-border bg-surface p-4 shadow-lift">
       <figcaption className="text-[10px] font-medium tracking-[0.1em] text-muted-foreground uppercase">
         Compliance score
       </figcaption>

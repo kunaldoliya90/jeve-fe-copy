@@ -189,6 +189,25 @@ export function formatExcel(value: string | null | undefined, format?: string | 
 }
 
 /**
+ * An amount of money, always written to the cent.
+ *
+ * Separate from `formatExcel` because the two are formatting different things.
+ * That one renders a *column of a workbook* the way the workbook renders it,
+ * and a column with no format string holding whole numbers is written without
+ * decimals — which is right there, where a whole number on a General column is
+ * a count or a code rather than a quantity.
+ *
+ * These figures are not a column. They are the entry's own totals in the
+ * entry's own currency, rounded to the scale the business declared, and an
+ * accrual that happens to come to exactly 200 euros must not print as `200`
+ * beside one that prints as `12,556.50`. A work paper where the cents appear
+ * and disappear depending on the value reads as two different documents.
+ */
+export function formatAmount(value: string | null | undefined): string {
+  return formatExcel(value, '#,##0.00');
+}
+
+/**
  * A variance, written to whatever precision it actually needs.
  *
  * Column formatting is wrong for these. A re-add against a stated total differs

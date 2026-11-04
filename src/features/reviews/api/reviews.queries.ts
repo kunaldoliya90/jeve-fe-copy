@@ -9,8 +9,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
-import { isFinished, type JETypeView, type ReviewDetail, type ReviewSummary } from '../types';
-import { deleteReview, getReview, listJeTypes, listReviews, uploadWorkbook } from './reviews.api';
+import {
+  isFinished,
+  type JETypeView,
+  type RecalcGroupSummary,
+  type RecalcRowPage,
+  type ReviewDetail,
+  type ReviewSummary,
+} from '../types';
+import {
+  deleteReview,
+  getRecalculationGroups,
+  getRecalculationRows,
+  getReview,
+  listJeTypes,
+  listReviews,
+  uploadWorkbook,
+} from './reviews.api';
 
 /**
  * How often to re-ask for a running review.
@@ -32,6 +47,12 @@ export const reviewKeys = {
   list: () => [...reviewKeys.all, 'list'] as const,
   detail: (id: string) => [...reviewKeys.all, 'detail', id] as const,
   jeTypes: () => ['je-types'] as const,
+  recalcRows: (
+    id: string,
+    params: { status?: string; sort?: string; limit?: number; cursor?: string | null },
+  ) => [...reviewKeys.all, 'recalc-rows', id, params] as const,
+  recalcGroups: (id: string, groupBy: string, status?: string) =>
+    [...reviewKeys.all, 'recalc-groups', id, groupBy, status] as const,
 };
 
 export interface UseReviewOptions {
@@ -143,6 +164,47 @@ export function useJeTypes() {
   return useQuery<JETypeView[]>({
     queryKey: reviewKeys.jeTypes(),
     queryFn: listJeTypes,
+    staleTime: Infinity,
+  });
+}
+
+/**
+ * One page of a recalculation's full row set.
+ *
+ * A recalculation is write-once, the same as the review it belongs to, so once a page has
+ * answered it never goes stale — a filter or sort change is a different cache key, not a
+ * reason to refetch the same one.
+ */
+export function useRecalculationRows(
+  reviewId: string | undefined,
+  params: { status?: string; sort?: string; limit?: number; cursor?: string | null } = {},
+) {
+  return useQuery<RecalcRowPage>({
+    queryKey: reviewKeys.recalcRows(reviewId ?? '', params),
+    queryFn: () => {
+      if (!reviewId) throw new Error('useRecalculationRows called without a review id');
+      return getRecalculationRows(reviewId, params);
+    },
+    enabled: Boolean(reviewId),
+    staleTime: Infinity,
+  });
+}
+
+/** A recalculation's rows, rolled up by one grouping dimension. */
+export function useRecalculationGroups(
+  reviewId: string | undefined,
+  groupBy: string | undefined,
+  status?: string,
+) {
+  return useQuery<RecalcGroupSummary[]>({
+    queryKey: reviewKeys.recalcGroups(reviewId ?? '', groupBy ?? '', status),
+    queryFn: () => {
+      if (!reviewId || !groupBy) {
+        throw new Error('useRecalculationGroups called without a review id or dimension');
+      }
+      return getRecalculationGroups(reviewId, groupBy, status);
+    },
+    enabled: Boolean(reviewId) && Boolean(groupBy),
     staleTime: Infinity,
   });
 }

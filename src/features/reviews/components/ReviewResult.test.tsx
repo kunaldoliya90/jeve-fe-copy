@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import { renderWithProviders, screen, within } from '@/testing/test-utils';
 
-import type { AreaView, CheckView, EvidenceView, ReviewDetail, SplitSummary } from '../types';
+import type {
+  AreaView,
+  CheckView,
+  EntryRecalculation,
+  EvidenceView,
+  ReviewDetail,
+  SplitSummary,
+} from '../types';
 import { ReviewResult } from './ReviewResult';
 
 function review(overrides: Partial<ReviewDetail> = {}): ReviewDetail {
@@ -33,6 +40,7 @@ function review(overrides: Partial<ReviewDetail> = {}): ReviewDetail {
     areas: [],
     observations: [],
     evidence: [],
+    recalculation: null,
     split_summary: null,
     gaps: [],
     needs_person: [],
@@ -70,6 +78,7 @@ function check(overrides: Partial<CheckView> = {}): CheckView {
     exception_count: 0,
     financial_impact: null,
     cells: [],
+    samples: [],
     ...overrides,
   };
 }
@@ -93,6 +102,66 @@ function evidence(overrides: Partial<EvidenceView> = {}): EvidenceView {
  * Spelled the way a French workbook spells it and not the way any module does,
  * so a label leaking into the component would show up here rather than passing.
  */
+function rebuild(overrides: Partial<EntryRecalculation> = {}): EntryRecalculation {
+  return {
+    basis: {
+      table: 'calculation',
+      sheet: 'GPAY',
+      header_row: 8,
+      first_row: 9,
+      last_row: 2467,
+      record_key: 'employee_ref',
+      stated_column: 'AH',
+      stated_header: 'TOTAL ACCRUAL',
+      formula: 'fte_amount + non_fte_amount',
+      formula_in_headers: 'FTE Vacation Accrual + Non-FTE Vacation Accrual',
+      sign: '',
+      currency: 'EUR',
+      rounding: '2 decimal places, half up',
+      day_count: '',
+      tolerance_pct: '0.1',
+      tolerance_amount: '27905.81',
+      row_tolerance: '0.01',
+      worked_example: '',
+      explained: null,
+      provisional_basis: false,
+    },
+    status: 'pass',
+    explanation: 'Rebuilt from 2,273 of 2,273 records.',
+    recomputed_total: '27905812.64',
+    booked: {
+      method: 'posting_debits',
+      total: '27905812.64',
+      description: 'the debit side of the posted entry',
+      table: 'je_posting',
+      sheet: 'Batch JE',
+      lines: 422,
+      accounts: ['720008'],
+    },
+    difference: '0.00',
+    difference_pct: 0,
+    within_tolerance: true,
+    rows_total: 2273,
+    rows_recomputed: 2273,
+    rows_incomplete: 0,
+    rows_agreeing: 2273,
+    row_impact: '0',
+    inputs: [],
+    components: [],
+    corroborations: [],
+    citations: [],
+    citation_count: 0,
+    formula_findings: [],
+    formula_columns_audited: 5,
+    notes: [],
+    duration_ms: 24,
+    complete: true,
+    ties: true,
+    related_checks: [],
+    ...overrides,
+  };
+}
+
 function workPaper(overrides: Partial<SplitSummary> = {}): SplitSummary {
   return {
     basis: {
@@ -371,6 +440,32 @@ describe('the worklist', () => {
   });
 
   /**
+   * The entry recalculation reads first, the cost sits directly after it, and
+   * the split work paper — what the recalculated amount is composed of —
+   * reads last: a reader wants the rebuilt amount in view before being told
+   * what establishing it cost, and the composition after both.
+   */
+  it('numbers the entry recalculation, the cost and the split work paper in reading order', () => {
+    renderWithProviders(
+      <ReviewResult
+        review={review({
+          areas: [area()],
+          recalculation: rebuild(),
+          split_summary: workPaper(),
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole('region', { name: /^4 The posted amount, rebuilt from its inputs/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /^5 What this review cost/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: /^6 Independent recalculation/ }),
+    ).toBeInTheDocument();
+  });
+
+  /**
    * The numbers are how one person says "look at four" to another, so a report
    * whose sections run 3, 5, 6 reads as one with a section missing.
    *
@@ -383,12 +478,14 @@ describe('the worklist', () => {
     ['nothing conditional present', review()],
     ['a worklist only', review({ needs_person: [waiting] })],
     ['an evidence register only', review({ evidence: [evidence()] })],
-    ['a recalculation only', review({ split_summary: workPaper() })],
+    ['a split work paper only', review({ split_summary: workPaper() })],
+    ['a rebuilt entry only', review({ recalculation: rebuild() })],
     [
       'all of them',
       review({
         needs_person: [waiting],
         evidence: [evidence()],
+        recalculation: rebuild(),
         split_summary: workPaper(),
       }),
     ],
@@ -635,7 +732,7 @@ describe('the tested parameters', () => {
 
     const card = screen.getByRole('article', { name: /Employee population/ });
     expect(within(card).getByText('99.9')).toBeInTheDocument();
-    expect(within(card).getByText('15% of the score')).toBeInTheDocument();
+    expect(within(card).getByText('15% weight')).toBeInTheDocument();
     expect(within(card).getByText('Fail')).toBeInTheDocument();
   });
 
@@ -843,25 +940,27 @@ describe('the evidence register', () => {
     expect(screen.queryByRole('region', { name: /evidence and validation register/ })).toBeNull();
   });
 
-  it('is section 2, above the score it qualifies', () => {
-    // Which layers arrived at all is the question asked first. A score read
-    // before that is settled is a score read without knowing how much of the
-    // file it was computed from.
+  it('is section 4, after the parameters it backs', () => {
+    // The score is the number read aloud in a meeting, so it comes first. The
+    // parameters a reviewer scores against follow it, and the register that
+    // backs those parameters with evidence comes after them in turn.
     renderWithProviders(
       <ReviewResult review={review({ evidence: [evidence()], areas: [area()] })} />,
     );
 
+    const score = screen.getByRole('region', { name: '2 Evidence-led compliance' });
+    const parameters = screen.getByRole('region', { name: '3 Key tested parameters' });
     const register = screen.getByRole('region', {
-      name: '2 Detailed evidence and validation register',
+      name: '4 Detailed evidence and validation register',
     });
-    const score = screen.getByRole('region', { name: '3 Evidence-led compliance' });
 
-    expect(register.compareDocumentPosition(score)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(score.compareDocumentPosition(parameters)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(parameters.compareDocumentPosition(register)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
-  it('hands 2 back to the score on a review that expected no evidence', () => {
-    // The register is conditional, so the number it would have taken cannot be
-    // left as a hole in the spine.
+  it('leaves the score at 2 on a review that expected no evidence', () => {
+    // The score is claimed first regardless, so a review with nothing to
+    // register still prints an unbroken spine rather than a hole at 2.
     renderWithProviders(<ReviewResult review={review({ areas: [area()] })} />);
 
     expect(screen.getByRole('region', { name: '2 Evidence-led compliance' })).toBeInTheDocument();

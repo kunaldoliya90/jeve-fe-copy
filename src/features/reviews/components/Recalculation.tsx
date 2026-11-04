@@ -48,7 +48,7 @@ import {
   STATUS_LABELS,
   type WalkStep,
 } from '../types';
-import { Section } from './Section';
+import { Block, Section } from './Section';
 import { TableShell, Td, Th, Tr } from './TableShell';
 
 interface RecalculationProps {
@@ -90,18 +90,19 @@ export function Recalculation({ review, index }: RecalculationProps) {
       }
     >
       <p className="-mt-1 mb-5 max-w-prose text-xs leading-relaxed text-muted-foreground">
-        Everything below was computed from the workbook's own cells by code alone — no model
+        Everything below was computed from the workbook's own cells by code alone, no model
         contributed a figure. The row titles are the headers the preparer wrote and the amounts are
         formatted the way the file formats them.
       </p>
 
       <div className="space-y-6">
-        <Block letter="A" title="What the entry is composed of, by class">
+        <Block prefix="recalculation" letter="A" title="What the entry is composed of, by class">
           <SplitMatrix categories={categories} components={components} />
         </Block>
 
         {tieOuts.length > 0 ? (
           <Block
+            prefix="recalculation"
             letter="B"
             title="Against the totals the file states above its own data"
             note="Each of these was found by shape, not by address: a number sitting in a column above its header is that column's control total, wherever the preparer put it."
@@ -111,6 +112,7 @@ export function Recalculation({ review, index }: RecalculationProps) {
         ) : null}
 
         <Block
+          prefix="recalculation"
           letter="C"
           title="How each column is calculated"
           note={
@@ -124,9 +126,10 @@ export function Recalculation({ review, index }: RecalculationProps) {
 
         {paper.walkthroughs.length > 0 ? (
           <Block
+            prefix="recalculation"
             letter="D"
             title="One row, traced"
-            note="Addressed by row number and nothing else. No name, no personnel reference — enough to open the file at the right line and follow the same arithmetic."
+            note="Addressed by row number and nothing else. No name, no personnel reference, just enough to open the file at the right line and follow the same arithmetic."
           >
             <Walkthroughs walkthroughs={paper.walkthroughs} />
           </Block>
@@ -134,6 +137,7 @@ export function Recalculation({ review, index }: RecalculationProps) {
 
         {paper.tests.length > 0 ? (
           <Block
+            prefix="recalculation"
             letter="E"
             title="What each test found"
             note="Carried from the checks above rather than re-run here, so this table and the parameters section can never disagree about a result."
@@ -147,51 +151,6 @@ export function Recalculation({ review, index }: RecalculationProps) {
         {paper.notes.length > 0 ? <Notes notes={paper.notes} /> : null}
       </div>
     </Section>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  A lettered block inside the section                                        */
-/* -------------------------------------------------------------------------- */
-
-function Block({
-  letter,
-  title,
-  note,
-  children,
-}: {
-  letter: string;
-  title: string;
-  note?: string | undefined;
-  children: React.ReactNode;
-}) {
-  const id = `recalculation-${letter.toLowerCase()}`;
-
-  return (
-    <section aria-labelledby={`${id}-heading`} className="scroll-mt-24">
-      <h3
-        id={`${id}-heading`}
-        className="flex items-baseline gap-2.5 text-sm font-semibold text-foreground"
-      >
-        {/* The letter is inside the heading and not aria-hidden, the same way
-            `Section` carries its number: "look at four B" has to work for
-            somebody listening to the report as well as for somebody pointing at
-            it, and the print stylesheet drops `[aria-hidden]` elements outright,
-            so a decorative letter prints as nothing at all. */}
-        <span className="font-mono text-[11px] font-semibold tracking-[0.1em] text-accent-strong">
-          {letter}
-        </span>{' '}
-        {title}
-      </h3>
-      {note ? (
-        <p className="mt-1 mb-3 max-w-prose text-xs leading-relaxed text-muted-foreground">
-          {note}
-        </p>
-      ) : (
-        <div className="mb-3" />
-      )}
-      {children}
-    </section>
   );
 }
 
@@ -286,7 +245,7 @@ function SplitMatrix({
 
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
         Each row's classes add up to its total exactly. Rows of the block that carry no class at all
-        are outside both — a block ends at a run of blank rows, so it reaches past the last record
+        are outside both: a block ends at a run of blank rows, so it reaches past the last record
         into the preparer's own subtotals, and adding those would count the column twice.
       </p>
     </>

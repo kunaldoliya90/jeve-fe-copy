@@ -470,6 +470,17 @@
       position: static !important;
     }
 
+    /* A parameter tile's checks are one click away on screen so the report
+       reads compactly; a check nobody can click into on paper prints as
+       nothing, so every one of these opens regardless of its screen state. */
+    details {
+      display: block !important;
+    }
+
+    details > :not(summary) {
+      display: block !important;
+    }
+
     *,
     *::before,
     *::after {

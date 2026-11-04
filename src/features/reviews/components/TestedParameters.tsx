@@ -8,25 +8,31 @@
  * worst check and the number from the weighted arithmetic. Reading only one of
  * them is how a failure gets signed off.
  *
- * The checks beneath each parameter are the point of the section. The score is
- * an aggregate, and an aggregate is not an explanation — "Period and cut-off:
- * 40" tells a reviewer nothing they can act on, where "the methodology tab has
- * no period stamp for period 08" tells them what to go and get. Each check
- * carries its own question, what it concluded, how many exceptions it found,
- * what that is worth, and which cells it looked at.
+ * Laid out as a grid of compact tiles rather than one full-width card per
+ * parameter — a page of these used to run several screens before a reviewer
+ * reached the evidence register below it. Each tile still carries everything
+ * the old card did; the checks that decided it are one disclosure away instead
+ * of always open, because the tile's own score and reason are what gets read
+ * first and the checks are what gets read *into*.
  *
- * Laid out the way `ReviewPlan` lays out the same entry type before a review
- * runs — area, then its checks — so the plan and the result read as two views
- * of one thing rather than two different documents.
- *
- * Nothing here is collapsed behind a disclosure. This report is printed and
- * circulated, and a check hidden in a closed panel prints as a blank.
+ * That disclosure is screen-only. This report is printed and circulated, and a
+ * check hidden in a closed panel prints as a blank, so the print stylesheet
+ * (`globals.css`) forces every check list open regardless of its on-screen
+ * state.
  */
 
-import { Badge, Card, ProgressBar } from '@/components/ui';
-import { cn } from '@/utils/cn';
+import {
+  CheckCircle2,
+  ChevronDown,
+  CircleDashed,
+  CircleSlash2,
+  TriangleAlert,
+  XCircle,
+} from 'lucide-react';
 
-import { STATUS_TEXT, STATUS_TONE } from '../lib/status';
+import { Badge, Card } from '@/components/ui';
+
+import { STATUS_TONE } from '../lib/status';
 import {
   AREA_LABELS,
   type AreaView,
@@ -110,9 +116,9 @@ export function TestedParameters({ review, index }: { review: ReviewDetail; inde
     >
       <Tally areas={areas} />
 
-      <ol className="mt-4 space-y-3">
+      <ol className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {areas.map((area, index) => (
-          <ParameterCard key={area.area} area={area} index={index} />
+          <ParameterTile key={area.area} area={area} index={index} />
         ))}
       </ol>
 
@@ -127,41 +133,48 @@ export function TestedParameters({ review, index }: { review: ReviewDetail; inde
   );
 }
 
+/** The card tone each tally tile reads as. */
+const TILE_TONE: Record<CheckStatus, 'success' | 'danger' | 'warning' | 'default'> = {
+  pass: 'success',
+  fail: 'danger',
+  partial: 'warning',
+  unable_to_validate: 'default',
+  missing_evidence: 'default',
+};
+
 function Tally({ areas }: { areas: AreaView[] }) {
   const unproven = areas.filter(
     (area) => area.status === 'unable_to_validate' || area.status === 'missing_evidence',
   ).length;
 
   return (
-    <div role="group" aria-label="Parameter outcomes">
-      <dl className="flex flex-wrap gap-x-8 gap-y-3">
-        {COUNTED.map(({ status, label }) => (
-          <div key={status}>
-            <dt
-              className={cn(
-                'text-[11px] font-semibold tracking-wide uppercase',
-                STATUS_TEXT[status],
-              )}
-            >
-              {label}
-            </dt>
-            <dd className="mt-0.5 text-[1.75rem] leading-none font-semibold text-foreground tabular-nums">
-              {areas.filter((area) => area.status === status).length}
-            </dd>
-          </div>
-        ))}
-        {unproven > 0 ? (
-          <div>
-            <dt className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-              Unproven
-            </dt>
-            <dd className="mt-0.5 text-[1.75rem] leading-none font-semibold text-foreground tabular-nums">
-              {unproven}
-            </dd>
-          </div>
-        ) : null}
-      </dl>
-    </div>
+    <dl role="group" aria-label="Parameter outcomes" className="flex flex-wrap gap-2.5">
+      {COUNTED.map(({ status, label }) => (
+        <Card
+          key={status}
+          tone={TILE_TONE[status]}
+          elevation="flat"
+          className="flex items-baseline gap-2 px-3.5 py-2.5"
+        >
+          <dd className="text-xl leading-none font-semibold text-foreground tabular-nums">
+            {areas.filter((area) => area.status === status).length}
+          </dd>
+          <dt className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+            {label}
+          </dt>
+        </Card>
+      ))}
+      {unproven > 0 ? (
+        <Card tone="default" elevation="flat" className="flex items-baseline gap-2 px-3.5 py-2.5">
+          <dd className="text-xl leading-none font-semibold text-foreground tabular-nums">
+            {unproven}
+          </dd>
+          <dt className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+            Unproven
+          </dt>
+        </Card>
+      ) : null}
+    </dl>
   );
 }
 
@@ -169,81 +182,73 @@ function Tally({ areas }: { areas: AreaView[] }) {
 /*  One parameter                                                              */
 /* -------------------------------------------------------------------------- */
 
-/** The bar under the score. Tone follows the badge, never the number. */
-const BAR_TONE: Record<CheckStatus, 'success' | 'warning' | 'danger'> = {
-  pass: 'success',
-  partial: 'warning',
-  unable_to_validate: 'warning',
-  missing_evidence: 'warning',
-  fail: 'danger',
-};
-
-function ParameterCard({ area, index }: { area: AreaView; index: number }) {
+function ParameterTile({ area, index }: { area: AreaView; index: number }) {
   const headingId = `parameter-${area.area}`;
   const label = AREA_LABELS[area.area] ?? area.area;
   const { checks } = area;
 
   return (
     <li className="stagger" style={{ '--i': index } as React.CSSProperties}>
-      <Card as="article" aria-labelledby={headingId} className="overflow-hidden">
-        <header className="border-b border-border-hairline bg-surface-muted/50 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h3 id={headingId} className="text-sm font-semibold text-foreground">
-                {label}
-              </h3>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {METHOD_LABELS[area.method] ?? area.method}
-                {checks.length > 0 ? ` · ${checks.length} check${plural(checks.length)}` : ''}
-              </p>
-            </div>
-
-            <div className="flex flex-none items-center gap-3">
-              <p className="flex items-baseline gap-0.5">
-                <span className="text-2xl leading-none font-semibold text-foreground tabular-nums">
-                  {area.score}
-                </span>
-                <span className="text-xs text-muted-foreground">/100</span>
-              </p>
-              <StatusBadge status={area.status} />
-            </div>
+      <Card
+        as="article"
+        aria-labelledby={headingId}
+        className="flex h-full flex-col overflow-hidden"
+      >
+        <div className="flex-1 p-3.5">
+          <div className="flex items-start justify-between gap-2">
+            <h3 id={headingId} className="text-sm font-semibold text-pretty text-foreground">
+              {label}
+            </h3>
+            <StatusBadge status={area.status} />
           </div>
 
-          <div className="mt-3 flex items-center gap-3">
-            <ProgressBar
-              value={area.score}
-              tone={BAR_TONE[area.status]}
-              label={`${label} scored ${String(area.score)} out of 100`}
-              className="flex-1"
-            />
+          <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+            {METHOD_LABELS[area.method] ?? area.method}
+          </p>
+
+          <div className="mt-2.5 flex items-end justify-between gap-2">
+            <p className="flex items-baseline gap-0.5">
+              <span className="text-2xl leading-none font-semibold text-foreground tabular-nums">
+                {area.score}
+              </span>
+              <span className="text-xs text-muted-foreground">/100</span>
+            </p>
             <span
               className="flex-none text-[11px] text-muted-foreground tabular-nums"
               title="How much of the compliance score this parameter can move"
             >
-              {area.weight}% of the score
+              {area.weight}% weight
             </span>
           </div>
 
-          {/* The weakest check's own words, inside the verdict block rather
-              than above the list: set on the white below, an unbadged line of
-              prose reads as a check whose status failed to render. Where the
-              engine wrote no reason, nothing is shown — the scoring method is
-              already named above, and repeating it here as a finding is what
-              made the old card read as though "Weakest check" were something
-              the review had concluded. */}
+          {/* The weakest check's own words. Where the engine wrote no reason,
+              nothing is shown — the scoring method is already named above, and
+              repeating it here as a finding is what made the old card read as
+              though "Weakest check" were something the review had concluded. */}
           {area.reason ? (
-            <p className="mt-3 text-sm leading-relaxed text-foreground">
+            <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
               <Prose text={area.reason} />
             </p>
           ) : null}
-        </header>
+        </div>
 
         {checks.length > 0 ? (
-          <ul className="divide-y divide-border-hairline">
-            {checks.map((check) => (
-              <CheckRow key={check.check_id} check={check} />
-            ))}
-          </ul>
+          <details className="group border-t border-border-hairline">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3.5 py-2 text-xs font-medium text-muted-foreground select-none hover:text-foreground [&::-webkit-details-marker]:hidden">
+              <span>
+                {checks.length} check{plural(checks.length)}
+              </span>
+              <ChevronDown
+                aria-hidden="true"
+                className="duration-quick size-3.5 transition-transform group-open:rotate-180"
+              />
+            </summary>
+            <ul className="divide-y divide-border-hairline border-t border-border-hairline">
+              {checks.map((check) => (
+                <CheckRow key={check.check_id} check={check} />
+              ))}
+            </ul>
+          </details>
         ) : null}
       </Card>
     </li>
@@ -337,9 +342,21 @@ function plural(count: number): string {
   return count === 1 ? '' : 's';
 }
 
+/** One glyph per status, so a row of badges reads at a glance before the words do. */
+const STATUS_ICON: Record<CheckStatus, typeof CheckCircle2> = {
+  pass: CheckCircle2,
+  partial: TriangleAlert,
+  unable_to_validate: CircleDashed,
+  missing_evidence: CircleSlash2,
+  fail: XCircle,
+};
+
 export function StatusBadge({ status }: { status: CheckStatus }) {
+  const Icon = STATUS_ICON[status];
+
   return (
     <Badge tone={STATUS_TONE[status]} size="sm" className="shrink-0">
+      <Icon aria-hidden="true" className="size-3" />
       {STATUS_LABELS[status]}
     </Badge>
   );

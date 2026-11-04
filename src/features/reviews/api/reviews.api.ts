@@ -11,7 +11,14 @@ import { env } from '@/config/env';
 import { http } from '@/lib/http';
 import { ApiError, toUserMessage } from '@/lib/http/errors';
 
-import type { JETypeView, ReviewAccepted, ReviewDetail, ReviewSummary } from '../types';
+import type {
+  JETypeView,
+  RecalcGroupSummary,
+  RecalcRowPage,
+  ReviewAccepted,
+  ReviewDetail,
+  ReviewSummary,
+} from '../types';
 
 const BASE = '/jeve/reviews/';
 
@@ -81,6 +88,37 @@ export function eventsUrl(reviewId: string): string {
 
 export function listJeTypes(): Promise<JETypeView[]> {
   return http.get<JETypeView[]>('/jeve/je-types/');
+}
+
+/**
+ * One page of a recalculation's full row set — everything the work paper's own capped
+ * citations don't show. `status` is `'all'` | `'changed'` | `'agrees'` | one `DiscrepancyKind`
+ * value; `sort` is a field name, `-` prefixed for descending (the server's default is
+ * unsorted, insertion order).
+ */
+export function getRecalculationRows(
+  reviewId: string,
+  params: { status?: string; sort?: string; limit?: number; cursor?: string | null } = {},
+): Promise<RecalcRowPage> {
+  return http.get<RecalcRowPage>(`${BASE}${reviewId}/recalculation/rows/`, {
+    params: {
+      status: params.status,
+      sort: params.sort,
+      limit: params.limit,
+      cursor: params.cursor ?? undefined,
+    },
+  });
+}
+
+/** A recalculation's rows, rolled up by one grouping dimension (e.g. `'cost_center'`). */
+export function getRecalculationGroups(
+  reviewId: string,
+  groupBy: string,
+  status?: string,
+): Promise<RecalcGroupSummary[]> {
+  return http.get<RecalcGroupSummary[]>(`${BASE}${reviewId}/recalculation/groups/`, {
+    params: { group_by: groupBy, status },
+  });
 }
 
 /**
