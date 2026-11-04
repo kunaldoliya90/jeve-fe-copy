@@ -239,8 +239,17 @@ export interface ReviewDetail {
    * on any review stored before the work paper existed.
    */
   split_summary: SplitSummary | null;
-  /** Checks the review could not establish either way. */
-  gaps: string[];
+  /**
+   * Checks the review could not establish either way.
+   *
+   * Optional because the field is not in every response the deployed API
+   * returns, and `getReview` casts rather than validates - a required type
+   * here is an assertion nothing enforces at runtime, which is what turned a
+   * missing key into a white screen. Read it through `?.` and treat absent as
+   * empty: a review with no gaps and a review whose gaps were never sent both
+   * have nothing to show.
+   */
+  gaps?: string[];
   needs_person: CheckView[];
   next_steps: string[];
   /**

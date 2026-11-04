@@ -576,6 +576,22 @@ describe('what could not be validated', () => {
 
     expect(panel()).toHaveTextContent('2 checks');
   });
+
+  /**
+   * The deployed API does not send `gaps` at all, and `getReview` casts the
+   * response rather than validating it, so the key arrives absent rather than
+   * empty. Reading `.length` off it threw and the route error boundary took
+   * the whole report down - a blank screen over a field with nothing to show.
+   */
+  it('renders the rest of the report when the response omits gaps entirely', () => {
+    const detail = review();
+    delete detail.gaps;
+
+    renderWithProviders(<ReviewResult review={detail} />);
+
+    expect(screen.queryByRole('region', { name: 'What could not be validated' })).toBeNull();
+    expect(screen.getByRole('region', { name: /What this review cost/ })).toBeInTheDocument();
+  });
 });
 
 describe('the executive summary', () => {

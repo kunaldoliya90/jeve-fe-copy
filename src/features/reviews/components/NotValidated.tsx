@@ -30,7 +30,7 @@ import { Prose } from './Prose';
 import { StatusBadge } from './TestedParameters';
 
 export function NotValidated({ review }: { review: ReviewDetail }) {
-  if (review.gaps.length === 0) return null;
+  if (!review.gaps?.length) return null;
 
   const gaps = parseGaps(review.gaps, checksById(review));
   // Only an area that was actually scored has a card to jump back to.

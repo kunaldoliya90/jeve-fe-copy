@@ -154,7 +154,7 @@ export function ReviewResult({ review }: ReviewResultProps) {
         </Reveal>
       ) : null}
 
-      {review.gaps.length > 0 ? (
+      {review.gaps?.length ? (
         <Reveal index={8}>
           <NotValidated review={review} />
         </Reveal>
