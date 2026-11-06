@@ -1,6 +1,5 @@
 /**
- * Every parameter the entry was tested on, what each one came to, and the
- * checks that decided it.
+ * Every parameter the entry was tested on, and what each one came to.
  *
  * A card shows a status *and* a score because they answer different questions.
  * An exception-rate area with three bad rows in forty thousand scores in the
@@ -10,25 +9,13 @@
  *
  * Laid out as a grid of compact tiles rather than one full-width card per
  * parameter — a page of these used to run several screens before a reviewer
- * reached the evidence register below it. Each tile still carries everything
- * the old card did; the checks that decided it are one disclosure away instead
- * of always open, because the tile's own score and reason are what gets read
- * first and the checks are what gets read *into*.
- *
- * That disclosure is screen-only. This report is printed and circulated, and a
- * check hidden in a closed panel prints as a blank, so the print stylesheet
- * (`globals.css`) forces every check list open regardless of its on-screen
- * state.
+ * reached the evidence register below it. Each tile is the plain-English
+ * reason the score is what it is; the checks behind it are not repeated here
+ * at all, never mind behind a disclosure — a reviewer who wants them has the
+ * evidence register and the work papers further down the report.
  */
 
-import {
-  CheckCircle2,
-  ChevronDown,
-  CircleDashed,
-  CircleSlash2,
-  TriangleAlert,
-  XCircle,
-} from 'lucide-react';
+import { CheckCircle2, CircleDashed, CircleSlash2, TriangleAlert, XCircle } from 'lucide-react';
 
 import { Badge, Card } from '@/components/ui';
 
@@ -123,12 +110,6 @@ export function TestedParameters({ review, index }: { review: ReviewDetail; inde
       </ol>
 
       {observations.length > 0 ? <Observations checks={observations} index={areas.length} /> : null}
-
-      <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-        A parameter is badged by its worst check and scored by its weight. Unproven and no evidence
-        are kept apart from fail on purpose: nothing was established, versus nothing was supplied,
-        and a reviewer acts on them differently.
-      </p>
     </Section>
   );
 }
@@ -185,7 +166,6 @@ function Tally({ areas }: { areas: AreaView[] }) {
 function ParameterTile({ area, index }: { area: AreaView; index: number }) {
   const headingId = `parameter-${area.area}`;
   const label = AREA_LABELS[area.area] ?? area.area;
-  const { checks } = area;
 
   return (
     <li className="stagger" style={{ '--i': index } as React.CSSProperties}>
@@ -221,35 +201,18 @@ function ParameterTile({ area, index }: { area: AreaView; index: number }) {
             </span>
           </div>
 
-          {/* The weakest check's own words. Where the engine wrote no reason,
-              nothing is shown — the scoring method is already named above, and
-              repeating it here as a finding is what made the old card read as
-              though "Weakest check" were something the review had concluded. */}
+          {/* The decisive figure's own sentence — no check id, no tally, just
+              the one finding that drove the score. Where the engine wrote no
+              reason, nothing is shown — the scoring method is already named
+              above, and repeating it here as a finding is what made the old
+              card read as though "Weakest check" were something the review
+              had concluded. */}
           {area.reason ? (
-            <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
+            <p className="mt-2 line-clamp-4 text-xs leading-relaxed text-muted-foreground">
               <Prose text={area.reason} />
             </p>
           ) : null}
         </div>
-
-        {checks.length > 0 ? (
-          <details className="group border-t border-border-hairline">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3.5 py-2 text-xs font-medium text-muted-foreground select-none hover:text-foreground [&::-webkit-details-marker]:hidden">
-              <span>
-                {checks.length} check{plural(checks.length)}
-              </span>
-              <ChevronDown
-                aria-hidden="true"
-                className="duration-quick size-3.5 transition-transform group-open:rotate-180"
-              />
-            </summary>
-            <ul className="divide-y divide-border-hairline border-t border-border-hairline">
-              {checks.map((check) => (
-                <CheckRow key={check.check_id} check={check} />
-              ))}
-            </ul>
-          </details>
-        ) : null}
       </Card>
     </li>
   );
@@ -336,10 +299,6 @@ function Observations({ checks, index }: { checks: CheckView[]; index: number })
       </Card>
     </section>
   );
-}
-
-function plural(count: number): string {
-  return count === 1 ? '' : 's';
 }
 
 /** One glyph per status, so a row of badges reads at a glance before the words do. */

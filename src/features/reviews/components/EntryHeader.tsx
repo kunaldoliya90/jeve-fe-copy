@@ -6,20 +6,22 @@
  * practice meant both were blank on nearly every review; the document number
  * is now the name the workbook arrived under, and the risk rating is the band
  * this review's own score reached.
- *
- * That second one needs saying out loud, which is what the line under the
- * grid is for: the rating is the score restated, not a second reading of it.
- * Two numbers that always agree look like corroboration, and a reader who
- * takes them that way has been misled by the layout rather than by the data.
  */
 
-import { Badge } from '@/components/ui';
+import * as SelectPrimitive from '@radix-ui/react-select';
+import { Check, ChevronDown, ChevronUp, FileSpreadsheet } from 'lucide-react';
+import { useNavigate } from 'react-router';
 
-import { type ReviewDetail, RISK_LABELS } from '../types';
+import { Badge } from '@/components/ui';
+import { paths } from '@/config/paths';
+
+import { workbookUrl } from '../api/reviews.api';
+import { useReviewList } from '../api/reviews.queries';
+import { STATE_LABEL, STATE_TONE } from '../lib/status';
+import { isFinished, type ReviewDetail, type ReviewSummary, RISK_LABELS } from '../types';
 import { Field, NotStated, Section } from './Section';
 
 /** Where each derived value comes from, for the tooltip on its card. */
-const FROM_FILE_NAME = 'Taken from the name the workbook was uploaded under.';
 const FROM_SCORE =
   "From the band this review's score reached. The same fact as the compliance band, " +
   'not a second opinion on it.';
@@ -59,18 +61,26 @@ export function EntryHeader({ review }: { review: ReviewDetail }) {
       id="entry"
       title="Journal entry under review"
       aside={
-        <span className="font-mono text-xs">
-          {review.file_name}
-          {review.workbook ? ` · ${review.workbook.workbook_format}` : ''}
-        </span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span className="font-mono text-xs">
+            {review.file_name}
+            {review.workbook ? ` · ${review.workbook.workbook_format}` : ''}
+          </span>
+          <a
+            href={workbookUrl(review.review_id)}
+            target="_blank"
+            rel="noreferrer"
+            title="Open the workbook this review was run on, as it was uploaded"
+            className="duration-quick inline-flex press items-center gap-1.5 text-xs font-medium text-primary transition-colors ease-out-soft hover:text-primary-active"
+          >
+            <FileSpreadsheet aria-hidden="true" className="size-3.5" />
+            Open supporting document
+          </a>
+        </div>
       }
     >
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        <Field
-          label="Document no."
-          value={orNothing(review.document_number)}
-          hint={FROM_FILE_NAME}
-        />
+        <DocumentSelector review={review} />
         <Field label="Process" value={orNothing(review.process, 'Not established')} />
         <Field label="Sub process" value={orNothing(review.sub_process, 'Not established')} />
         <Field
@@ -101,65 +111,132 @@ export function EntryHeader({ review }: { review: ReviewDetail }) {
           tone={RISK_TONE[review.risk_rating ?? 'none']}
         />
       </dl>
-
-      {/*
-        Said once rather than six times, and said at all because the risk
-        rating sitting in its own card implies an independence it does not
-        have. It is the compliance score, banded.
-      */}
-      <p className="mt-2 text-xs leading-relaxed text-subtle-foreground">
-        Every value here was established by the review: the document number from the file name, the
-        rest from the workbook itself. The risk rating is the band the compliance score reached, so
-        it restates that score rather than confirming it.
-      </p>
-
-      <Identification review={review} />
     </Section>
   );
 }
 
+/** A row's document number, or the file name when nothing was established yet. */
+function documentLabel(row: Pick<ReviewSummary, 'document_number' | 'file_name'>): string {
+  return row.document_number?.trim() ? row.document_number : row.file_name;
+}
+
 /**
- * How the type was settled, which is a different claim from what it is.
+ * The document number, as a switch to any other finished review rather than
+ * plain text.
  *
- * Three tiers run — the layout cache, the shape discriminators, then a second
- * independent reading — and the last of them can only raise the recorded
- * confidence or send the review to a person. It can never move a binding or a
- * number, so a dispute here never means the arithmetic is in doubt.
+ * A reviewer comparing entries used to have to leave this page for the list and
+ * find the other one by file name; this puts that choice where they are already
+ * looking. Still-running reviews are left off the list: there is nothing on
+ * them yet worth switching to.
+ *
+ * Built on Radix rather than a native `<select>`: a browser's own option list
+ * cannot show a second line or a status badge per row, and with two uploads of
+ * the same workbook sharing a document number, the file name underneath is
+ * what tells them apart.
  */
-function Identification({ review }: { review: ReviewDetail }) {
-  if (review.je_type === 'unknown') {
-    return (
-      <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-        Nothing in the catalogue matched this workbook&rsquo;s shape, so no entry type&rsquo;s
-        checks were applied to it.
-      </p>
-    );
+function DocumentSelector({ review }: { review: ReviewDetail }) {
+  const navigate = useNavigate();
+  const { data } = useReviewList();
+
+  const options = (data ?? []).filter(
+    (row) => row.review_id === review.review_id || isFinished(row.status),
+  );
+  if (!options.some((row) => row.review_id === review.review_id)) {
+    options.unshift({
+      review_id: review.review_id,
+      file_name: review.file_name,
+      document_number: review.document_number,
+      je_type: review.je_type,
+      status: review.status,
+      score: review.score,
+      band: review.band,
+      provisional: review.provisional,
+      created_at: review.created_at,
+    });
   }
 
-  const percent = Math.round(review.je_type_confidence * 100);
-
   return (
-    <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs leading-relaxed text-muted-foreground">
-      <span>
-        Recognised from the workbook&rsquo;s own columns
-        {review.je_type_variant ? (
-          <>
-            {' as '}
-            <span className="font-mono text-foreground">{review.je_type_variant}</span>
-          </>
-        ) : null}
-        , at {percent}% confidence.
-      </span>
+    <SelectPrimitive.Root
+      value={review.review_id}
+      onValueChange={(nextId) => {
+        if (nextId !== review.review_id) {
+          void navigate(paths.app.reviewDetail.getHref(nextId));
+        }
+      }}
+    >
+      <div className="duration-quick flex flex-col rounded-lg border border-border bg-surface px-3 py-2 text-foreground shadow-rest transition-[border-color,box-shadow] ease-glide has-[:focus-visible]:border-primary has-[:focus-visible]:shadow-glow has-[[data-state=open]]:border-primary has-[[data-state=open]]:shadow-glow">
+        <dt
+          id="document-selector-label"
+          className="text-[10px] font-medium tracking-[0.08em] text-muted-foreground uppercase"
+        >
+          Document no.
+        </dt>
+        <dd className="mt-1">
+          <SelectPrimitive.Trigger
+            id="document-selector-trigger"
+            aria-labelledby="document-selector-label document-selector-trigger"
+            className="group -mx-0.5 flex w-[calc(100%+0.25rem)] cursor-pointer items-center justify-between gap-1.5 rounded px-0.5 text-left text-sm leading-snug font-semibold text-pretty text-foreground outline-none"
+          >
+            <SelectPrimitive.Value className="truncate">
+              {documentLabel(review)}
+            </SelectPrimitive.Value>
+            <SelectPrimitive.Icon asChild>
+              <ChevronDown
+                aria-hidden="true"
+                className="duration-quick size-3.5 shrink-0 text-muted-foreground transition-transform ease-out-soft group-data-[state=open]:rotate-180"
+              />
+            </SelectPrimitive.Icon>
+          </SelectPrimitive.Trigger>
+        </dd>
+      </div>
 
-      {review.je_type_corroborated ? (
-        <Badge tone="success" size="sm">
-          A second, independent reading agreed
-        </Badge>
-      ) : (
-        <Badge tone="warning" size="sm">
-          The two readings differed, so a person is looking. The arithmetic is unaffected.
-        </Badge>
-      )}
-    </p>
+      <SelectPrimitive.Portal>
+        <SelectPrimitive.Content
+          position="popper"
+          align="start"
+          sideOffset={8}
+          className="z-50 max-w-[26rem] min-w-[20rem] overflow-hidden rounded-card border border-border bg-surface shadow-float data-[state=closed]:animate-pop-out data-[state=open]:animate-pop"
+        >
+          <SelectPrimitive.ScrollUpButton className="flex items-center justify-center py-1 text-muted-foreground">
+            <ChevronUp aria-hidden="true" className="size-4" />
+          </SelectPrimitive.ScrollUpButton>
+
+          <SelectPrimitive.Viewport className="max-h-[22rem] p-1.5">
+            {options.map((row) => (
+              <SelectPrimitive.Item
+                key={row.review_id}
+                value={row.review_id}
+                className="relative flex cursor-pointer scroll-my-1.5 items-center gap-2.5 rounded-md px-2.5 py-2 text-sm outline-none select-none data-[highlighted]:bg-surface-muted data-[state=checked]:bg-primary-subtle"
+              >
+                <div className="min-w-0 flex-1">
+                  <SelectPrimitive.ItemText>
+                    <span className="block truncate font-semibold text-foreground">
+                      {documentLabel(row)}
+                    </span>
+                  </SelectPrimitive.ItemText>
+                  {row.document_number?.trim() && row.document_number !== row.file_name ? (
+                    <span className="mt-0.5 block truncate font-mono text-xs text-muted-foreground">
+                      {row.file_name}
+                    </span>
+                  ) : null}
+                </div>
+
+                <Badge tone={STATE_TONE[row.status]} size="sm" className="shrink-0">
+                  {STATE_LABEL[row.status]}
+                </Badge>
+
+                <SelectPrimitive.ItemIndicator className="flex shrink-0 items-center text-primary">
+                  <Check aria-hidden="true" className="size-4" />
+                </SelectPrimitive.ItemIndicator>
+              </SelectPrimitive.Item>
+            ))}
+          </SelectPrimitive.Viewport>
+
+          <SelectPrimitive.ScrollDownButton className="flex items-center justify-center py-1 text-muted-foreground">
+            <ChevronDown aria-hidden="true" className="size-4" />
+          </SelectPrimitive.ScrollDownButton>
+        </SelectPrimitive.Content>
+      </SelectPrimitive.Portal>
+    </SelectPrimitive.Root>
   );
 }

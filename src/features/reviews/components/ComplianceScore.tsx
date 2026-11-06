@@ -7,16 +7,18 @@
  * zero. Nought out of a hundred and "nobody has checked" are different
  * findings, and a dial cannot tell them apart.
  *
- * The summary beside it is the paragraph a reviewer quotes in a meeting, and
- * it arrives as a single block of prose carrying five separate findings,
- * schema names, defect counts and a citation marker repeated on every
- * sentence. It is laid out here as one line per finding — see `lib/summary.ts`
- * for what that re-laying out is allowed to touch, which is punctuation and
- * spacing and nothing else. The verbatim paragraph stays one disclosure away,
- * because a reviewer must always be able to read what was actually written.
+ * The summary beside it is the paragraph a reviewer quotes in a meeting: one
+ * plain line per area that did not fully pass, then one naming the ones that
+ * did — written by code from the score, never composed around a tool's own
+ * output, so there is no cell reference, schema name or citation marker for
+ * `lib/summary.ts` to lay out. That module still exists for a review stored
+ * before this was true, and a sentence it does not recognise is simply shown
+ * as written rather than forced into a shape it does not have. The verbatim
+ * paragraph stays one disclosure away either way, because a reviewer must
+ * always be able to read what was actually written.
  */
 
-import { ChevronRight } from 'lucide-react';
+import { AlertTriangle, ChevronRight } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { AnimatedNumber } from '@/components/common';
@@ -219,22 +221,24 @@ function ExecutiveSummary({ review }: { review: ReviewDetail }) {
 /**
  * One finding, on its own line.
  *
- * The dot is decoration and nothing else — an `aria-hidden` colour that no
- * reader depends on, because the sentence beside it states the finding in
- * full. It exists so an eye scanning five lines lands on the ones reporting a
- * problem first, and it is amber rather than red because this module infers
- * it from wording. An inferred alarm must never look like a scored failure.
+ * The marker is decoration and nothing else — an `aria-hidden` glyph no reader
+ * depends on, because the sentence beside it states the finding in full. It
+ * exists so an eye scanning a handful of lines lands on the ones reporting a
+ * problem first, and the triangle is amber rather than red because this
+ * module infers it from wording. An inferred alarm must never look like a
+ * scored failure.
  */
 function Point({ point, index }: { point: SummaryPoint; index: number }) {
   return (
     <li className="flex stagger gap-2.5" style={{ '--i': index } as React.CSSProperties}>
-      <span
-        aria-hidden
-        className={cn(
-          'mt-[0.4375rem] size-1.5 flex-none rounded-full',
-          point.tone === 'attention' ? 'bg-warning' : 'bg-border-strong',
-        )}
-      />
+      {point.tone === 'attention' ? (
+        <AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 flex-none text-warning" />
+      ) : (
+        <span
+          aria-hidden
+          className="mt-[0.4375rem] size-1.5 flex-none rounded-full bg-border-strong"
+        />
+      )}
       <p className="text-sm leading-relaxed text-muted-foreground">
         {point.lead ? <span className="font-semibold text-foreground">{point.lead}: </span> : null}
         <Segments segments={point.body} />
@@ -263,7 +267,6 @@ function Trail({ review }: { review: ReviewDetail }) {
   const missing = review.evidence.filter(
     (item) => item.required && item.status !== 'available',
   ).length;
-  const waiting = review.needs_person.length;
 
   const links = [
     failed > 0
@@ -272,10 +275,6 @@ function Trail({ review }: { review: ReviewDetail }) {
     missing > 0
       ? { href: '#evidence', label: `${missing} required layer${plural(missing)} missing` }
       : null,
-    waiting > 0
-      ? { href: '#needs-person', label: `${waiting} check${plural(waiting)} waiting on a person` }
-      : null,
-    review.next_steps.length > 0 ? { href: '#next-steps', label: 'What to do next' } : null,
   ].filter((link) => link !== null);
 
   if (links.length === 0) return null;

@@ -95,11 +95,7 @@ export function ReviewLayout() {
       </main>
 
       <footer className="mt-10 border-t border-border/70">
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="max-w-prose text-xs leading-relaxed text-subtle-foreground">
-            Every figure comes from Python, exact to the cent. Anything that cannot be proven goes
-            to a person rather than being passed.
-          </p>
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-end">
           <ThemeToggle className="self-start sm:hidden" />
         </div>
       </footer>

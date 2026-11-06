@@ -168,17 +168,6 @@ export function ReviewProgress({
           }));
         }}
       />
-
-      {/* The division of labour, said once at the bottom, because the actor
-          named on each row above means nothing to a reader who has not been
-          told what the three of them are allowed to do. */}
-      <p className="max-w-prose px-1 text-xs leading-relaxed text-subtle-foreground">
-        The <span className="font-medium text-muted-foreground">harness</span> sequences the work
-        and never judges it. <span className="font-medium text-muted-foreground">Skills</span> read
-        and calculate, in Python, exact to the cent. Only an{' '}
-        <span className="font-medium text-muted-foreground">agent</span> judges, and a model is only
-        ever asked to read, to judge, or to write, never to calculate.
-      </p>
     </section>
   );
 }

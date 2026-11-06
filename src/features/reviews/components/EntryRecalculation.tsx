@@ -33,7 +33,7 @@
  * table inside a closed panel prints as a blank.
  */
 
-import { AlertTriangle, Check, Equal, Minus } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, Equal, Minus } from 'lucide-react';
 
 import { Badge } from '@/components/ui';
 import { cn } from '@/utils/cn';
@@ -44,15 +44,10 @@ import {
   BOOKED_METHOD_LABELS,
   DISCREPANCY_LABELS,
   type EntryRecalculation as EntryRecalculationData,
-  FORMULA_FAULT_LABELS,
-  FORMULA_FAULT_TONE,
-  type FormulaFinding,
   type RecalcCitation,
   type RecalcComponent,
-  type RecalcCorroboration,
   type RecalcExplained,
   type RecalcInputReading,
-  type RelatedRecalcCheck,
   type ReviewDetail,
   STATUS_LABELS,
   UNIT_LABELS,
@@ -67,56 +62,9 @@ interface EntryRecalculationProps {
   index: number;
 }
 
-interface BlockLetters {
-  formula: string;
-  inputs: string;
-  citations: string;
-  related: string;
-  browse: string;
-  corroborations: string;
-  faults: string;
-}
-
-const BLOCK_ORDER: (keyof BlockLetters)[] = [
-  'formula',
-  'citations',
-  'related',
-  'browse',
-  'inputs',
-  'corroborations',
-  'faults',
-];
-
-/**
- * Which letter each optional block gets, in reading order, skipping the ones this paper has
- * nothing to show. A fixed `letter="E"`/`"F"` ternary chain breaks the moment a new optional
- * block is inserted between two existing ones - this computes it instead. A hidden block's
- * entry is never read (its `Block` is not rendered), so its placeholder value is unused.
- */
-function blockLetters(paper: EntryRecalculationData): BlockLetters {
-  const visible: Record<keyof BlockLetters, boolean> = {
-    formula: true,
-    inputs: true,
-    citations: true,
-    related: paper.related_checks.length > 0,
-    browse: true,
-    corroborations: paper.corroborations.length > 0,
-    faults: paper.formula_columns_audited > 0,
-  };
-
-  const letters = {} as BlockLetters;
-  let next = 0;
-  for (const key of BLOCK_ORDER) {
-    letters[key] = visible[key] ? String.fromCharCode(65 + next) : '';
-    if (visible[key]) next += 1;
-  }
-  return letters;
-}
-
 export function EntryRecalculation({ review, index }: EntryRecalculationProps) {
   const paper = review.recalculation;
   if (!paper) return null;
-  const letters = blockLetters(paper);
 
   return (
     <Section
@@ -137,27 +85,18 @@ export function EntryRecalculation({ review, index }: EntryRecalculationProps) {
         </span>
       }
     >
-      <p className="-mt-1 mb-5 max-w-prose text-xs leading-relaxed text-muted-foreground">
-        The recomputed figure was produced by code alone, record by record, from the formula this
-        entry type states. The booked figure was read separately from the posted entry&rsquo;s own
-        lines. No model contributed to either.
-      </p>
-
       <div className="space-y-6">
         <Comparison paper={paper} />
 
-        <Block
-          prefix="entry-recalculation"
-          letter={letters.formula}
-          title="How the amount is arrived at"
-          note="The formula as the business states it, with each input replaced by the header of the column it was read from. A substitution rather than a translation, so it cannot say anything the file does not."
-        >
+        {/* Lettered by hand: every block below is unconditional, so the letters
+            are fixed. Allocate them in a loop again the day one becomes optional. */}
+        <Block prefix="entry-recalculation" letter="A" title="How the amount is arrived at">
           <Formula paper={paper} />
         </Block>
 
         <Block
           prefix="entry-recalculation"
-          letter={letters.citations}
+          letter="B"
           title="Where the records did not reconcile"
           note={
             paper.citation_count > 0
@@ -168,60 +107,18 @@ export function EntryRecalculation({ review, index }: EntryRecalculationProps) {
           <Citations paper={paper} />
         </Block>
 
-        {paper.related_checks.length > 0 ? (
-          <Block
-            prefix="entry-recalculation"
-            letter={letters.related}
-            title="Other calculation-accuracy findings on these same records"
-            note="A different formula is a different question, so none of this changes the recomputed figure or the difference above - but a record these checks flagged is still a record on this entry, and a reviewer reading the rebuild is owed it."
-          >
-            <RelatedChecks items={paper.related_checks} />
-          </Block>
-        ) : null}
-
-        <Block
-          prefix="entry-recalculation"
-          letter={letters.browse}
-          title="Browse every record"
-          note={`Block ${letters.citations} above is a worst-first sample, capped to fit a printed page. This is the full set behind it: every record, filterable, sortable and grouped your way, including a row any other check here flagged. It is a screen tool rather than part of the printed report, for the same reason — a server-paginated grid cannot print in full.`}
-        >
+        {/* `lazy`: the grid queries the server on mount, and a closed `details`
+            still renders its children — so without it every review page would
+            fetch a page of rows nobody asked to see. */}
+        <Block prefix="entry-recalculation" letter="C" title="Browse every record" collapsible lazy>
           <RecalcRowsExplorer reviewId={review.review_id} />
         </Block>
 
-        <Block
-          prefix="entry-recalculation"
-          letter={letters.inputs}
-          title="What it was rebuilt from"
-          note="A record an input does not resolve on is reported rather than recomputed as though the input were zero - that substitution is what turns a data gap into a confident wrong number."
-        >
+        <Block prefix="entry-recalculation" letter="D" title="What it was rebuilt from" collapsible>
           <Inputs inputs={paper.inputs} records={paper.rows_total} />
         </Block>
 
-        {paper.corroborations.length > 0 ? (
-          <Block
-            prefix="entry-recalculation"
-            letter={letters.corroborations}
-            title="Legs re-performed against the workbook’s own answer"
-            note="A leg rebuilt from its own inputs and compared, row by row, with the column the workbook computes for the same quantity. It corroborates the arithmetic; it never decides the outcome."
-          >
-            <Corroborations items={paper.corroborations} />
-          </Block>
-        ) : null}
-
-        {paper.formula_columns_audited > 0 ? (
-          <Block
-            prefix="entry-recalculation"
-            letter={letters.faults}
-            title="The formulas the workbook itself applies"
-            note="Read, never evaluated: each line below is a fact about the cells. A figure that agrees is not evidence that the formula behind it is the approved one, since a column built from the wrong columns produces the right total on every record where the missing input happens to be zero."
-          >
-            <FormulaFaults paper={paper} />
-          </Block>
-        ) : null}
-
         <Basis paper={paper} />
-
-        {paper.notes.length > 0 ? <Notes notes={paper.notes} /> : null}
       </div>
     </Section>
   );
@@ -325,10 +222,6 @@ function Differs({ paper }: { paper: EntryRecalculationData }) {
             large
           />
         </dl>
-
-        <p className="mt-3 max-w-prose text-xs leading-relaxed text-muted-foreground">
-          {paper.explanation}
-        </p>
       </div>
     </div>
   );
@@ -434,32 +327,11 @@ function Formula({ paper }: { paper: EntryRecalculationData }) {
             As declared: {basis.formula}
           </p>
         ) : null}
-        {basis.stated_column ? (
-          <p className="mt-3 border-t border-border-hairline pt-3 text-xs leading-relaxed text-muted-foreground">
-            Each record was compared against{' '}
-            <span className="font-medium text-foreground">
-              {basis.stated_header || basis.stated_column}
-            </span>{' '}
-            in column <span className="font-mono">{basis.stated_column}</span>, which is the amount
-            the workbook states for itself.
-          </p>
-        ) : null}
       </div>
 
       <Explained explained={basis.explained} />
 
       {paper.components.length > 0 ? <Components items={paper.components} /> : null}
-
-      {basis.worked_example ? (
-        <div className="rounded-card border border-border bg-surface-muted/40 p-4">
-          <p className="text-[10px] font-medium tracking-[0.08em] text-muted-foreground uppercase">
-            The worked example the business states
-          </p>
-          <p className="mt-1.5 max-w-prose text-xs leading-relaxed text-foreground">
-            {basis.worked_example}
-          </p>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -469,62 +341,77 @@ function Formula({ paper }: { paper: EntryRecalculationData }) {
  *
  * `null` for a JE type nobody has written this for yet - the formula box and the worked
  * example above it still stand on their own, so this is additive rather than load-bearing.
+ *
+ * Collapsed by default: the formula itself is already stated above, in headers and as a
+ * worked example, so this walkthrough is a reader's choice to open rather than something
+ * that has to be scanned past on every visit. The print stylesheet (`globals.css`) still
+ * forces it open on a printed copy, same as every other disclosure in this report.
  */
 function Explained({ explained }: { explained: RecalcExplained | null }) {
   if (!explained) return null;
 
   return (
-    <div className="space-y-3 rounded-card border border-border bg-surface-muted/40 p-4">
-      {explained.intro ? (
-        <p className="text-sm leading-relaxed text-foreground">{explained.intro}</p>
-      ) : null}
-      {explained.context ? (
-        <p className="max-w-prose text-xs leading-relaxed text-muted-foreground">
-          {explained.context}
-        </p>
-      ) : null}
+    <details className="group rounded-card border border-border bg-surface-muted/40">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm leading-relaxed text-foreground select-none [&::-webkit-details-marker]:hidden">
+        <span>{explained.intro || 'The formula, explained step by step'}</span>
+        <ChevronDown
+          aria-hidden="true"
+          className="duration-quick size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+        />
+      </summary>
 
-      {explained.steps.length > 0 ? (
-        <ol className="space-y-2.5 border-t border-border-hairline pt-3">
-          {explained.steps.map((step, index) => (
-            <li key={step.label} className="flex gap-3">
-              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-surface text-[11px] font-semibold text-muted-foreground">
-                {index + 1}
-              </span>
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-foreground">{step.label}</p>
-                {step.detail ? (
-                  <p className="mt-0.5 max-w-prose text-xs leading-relaxed text-muted-foreground">
-                    {step.detail}
-                  </p>
-                ) : null}
-                {step.example ? (
-                  <p className="mt-1 font-mono text-[11px] text-subtle-foreground">
-                    {step.example}
-                  </p>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ol>
-      ) : null}
+      <div className="space-y-3 border-t border-border-hairline p-4">
+        {explained.context ? (
+          <p className="max-w-prose text-xs leading-relaxed text-muted-foreground">
+            {explained.context}
+          </p>
+        ) : null}
 
-      {explained.summary ? (
-        <p className="border-t border-border-hairline pt-3 text-xs leading-relaxed font-medium text-foreground-strong">
-          {explained.summary}
-        </p>
-      ) : null}
+        {explained.steps.length > 0 ? (
+          <ol className="space-y-2.5 border-t border-border-hairline pt-3">
+            {explained.steps.map((step, index) => (
+              <li key={step.label} className="flex gap-3">
+                <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-surface text-[11px] font-semibold text-muted-foreground">
+                  {index + 1}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-foreground">{step.label}</p>
+                  {step.detail ? (
+                    <p className="mt-0.5 max-w-prose text-xs leading-relaxed text-muted-foreground">
+                      {step.detail}
+                    </p>
+                  ) : null}
+                  {step.example ? (
+                    <p className="mt-1 font-mono text-[11px] text-subtle-foreground">
+                      {step.example}
+                    </p>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ol>
+        ) : null}
 
-      {explained.caveats.length > 0 ? (
-        <ul className="list-disc space-y-1 border-t border-border-hairline pt-3 pl-4">
-          {explained.caveats.map((caveat) => (
-            <li key={caveat} className="max-w-prose text-xs leading-relaxed text-muted-foreground">
-              {caveat}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
+        {explained.summary ? (
+          <p className="border-t border-border-hairline pt-3 text-xs leading-relaxed font-medium text-foreground-strong">
+            {explained.summary}
+          </p>
+        ) : null}
+
+        {explained.caveats.length > 0 ? (
+          <ul className="list-disc space-y-1 border-t border-border-hairline pt-3 pl-4">
+            {explained.caveats.map((caveat) => (
+              <li
+                key={caveat}
+                className="max-w-prose text-xs leading-relaxed text-muted-foreground"
+              >
+                {caveat}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </details>
   );
 }
 
@@ -764,258 +651,6 @@ function CitationRow({ citation }: { citation: RecalcCitation }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Other calculation-accuracy findings on these same records                 */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Every other check that reads this table and found something, each as its own block.
- *
- * Never merged into the comparison above: a different formula is a different question, so
- * this never touches `recomputed_total` or `difference`. The citations table reuses
- * `CitationRow` as-is - the same Row/Cell/Recomputed/Stated/Difference shape a reader has
- * already seen in Block C, for what is, to them, the same kind of finding.
- */
-function RelatedChecks({ items }: { items: RelatedRecalcCheck[] }) {
-  return (
-    <div className="space-y-4">
-      {items.map((check) => (
-        <div key={check.check_id} className="space-y-2">
-          <div>
-            <p className="text-xs font-medium text-foreground">{check.label}</p>
-            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{check.summary}</p>
-          </div>
-          {check.citations.length > 0 ? (
-            <>
-              <TableShell
-                caption={`Records ${check.label} found differing`}
-                minWidth="min-w-[52rem]"
-              >
-                <thead>
-                  <tr>
-                    <Th>Row</Th>
-                    <Th>What it is</Th>
-                    <Th className="text-right">Recomputed</Th>
-                    <Th className="text-right">Stated</Th>
-                    <Th className="text-right">Difference</Th>
-                    <Th>Why</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {check.citations.map((citation) => (
-                    <CitationRow
-                      key={`${citation.row}-${citation.stated_cell}`}
-                      citation={citation}
-                    />
-                  ))}
-                </tbody>
-              </TableShell>
-              {check.citation_count > check.citations.length ? (
-                <p className="text-xs text-muted-foreground">
-                  Showing the {check.citations.length} largest of{' '}
-                  <span className="font-semibold text-foreground tabular-nums">
-                    {check.citation_count.toLocaleString()}
-                  </span>{' '}
-                  records this check found differing.
-                </p>
-              ) : null}
-            </>
-          ) : null}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  D - the corroborated legs                                                  */
-/* -------------------------------------------------------------------------- */
-
-function Corroborations({ items }: { items: RecalcCorroboration[] }) {
-  return (
-    <TableShell caption="Legs of the formula re-performed against the workbook’s own column">
-      <thead>
-        <tr>
-          <Th>Leg</Th>
-          <Th>Against</Th>
-          <Th className="text-right">Records agreeing</Th>
-          <Th className="text-right">Difference</Th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((item) => (
-          <Tr key={item.term}>
-            <Td className="font-medium text-foreground">{item.term}</Td>
-            <Td>{item.label || item.against}</Td>
-            <Td className="text-right tabular-nums">
-              <span className={item.agrees ? 'font-medium text-success' : 'text-warning'}>
-                {item.rows_agreeing.toLocaleString()}
-              </span>
-              <span className="text-subtle-foreground">
-                {' '}
-                / {item.rows_compared.toLocaleString()}
-              </span>
-            </Td>
-            <Td className="text-right tabular-nums">
-              {item.agrees ? (
-                <span className="text-success">None</span>
-              ) : (
-                <>
-                  <span className="text-warning">{formatAmount(item.impact)}</span>
-                  {item.first_example ? (
-                    <span className="block text-[10px] text-subtle-foreground">
-                      worst: {item.first_example}
-                    </span>
-                  ) : null}
-                </>
-              )}
-            </Td>
-          </Tr>
-        ))}
-      </tbody>
-    </TableShell>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  The workbook's own formulas                                                */
-/* -------------------------------------------------------------------------- */
-
-/**
- * What the file turned out to be doing, after the figures were rebuilt.
- *
- * Three states, and they are three different findings:
- *
- *  - **Nothing could be read.** A binary workbook carries values without the formulas
- *    behind them. Neutral, and never rendered as a clean bill of health: "nobody could
- *    look" and "nothing is wrong" must not look alike.
- *  - **Nothing wrong.** Said in one line, with the number of columns examined, so a reader
- *    knows the check ran rather than finding an empty section.
- *  - **Faults.** One row each, with the cell to open the file at, what the file does, what
- *    the business states instead, and why it matters.
- */
-function FormulaFaults({ paper }: { paper: EntryRecalculationData }) {
-  const findings = paper.formula_findings;
-  const unreadable = findings.some((finding) => finding.fault === 'unreadable');
-
-  if (unreadable) {
-    return (
-      <p className="flex items-start gap-2 rounded-card border border-border bg-surface-muted/40 p-4 text-sm leading-relaxed text-foreground">
-        <Minus aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-        <span>{findings[0]?.why}</span>
-      </p>
-    );
-  }
-
-  if (findings.length === 0) {
-    return (
-      <p className="flex items-start gap-2 rounded-card border border-success/30 bg-success/[0.07] p-4 text-sm leading-relaxed text-foreground">
-        <Check aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
-        <span>
-          The {paper.formula_columns_audited} column
-          {paper.formula_columns_audited === 1 ? '' : 's'} the business states arithmetic for are
-          each calculated, consistent down the column, and read the columns the approved arithmetic
-          reads.
-        </span>
-      </p>
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      <TableShell
-        caption="Faults in the arithmetic the workbook itself applies"
-        minWidth="min-w-[54rem]"
-      >
-        <thead>
-          <tr>
-            <Th>Fault</Th>
-            <Th>Column</Th>
-            <Th>What the file does</Th>
-            <Th>What the business states</Th>
-            <Th className="text-right">Rows</Th>
-            <Th>Why it matters</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {findings.map((finding) => (
-            <FaultRow
-              key={`${finding.column}-${finding.fault}-${finding.cell}`}
-              finding={finding}
-            />
-          ))}
-        </tbody>
-      </TableShell>
-      <p className="text-xs text-muted-foreground">
-        {paper.formula_columns_audited} column
-        {paper.formula_columns_audited === 1 ? '' : 's'} examined: every one the business states
-        arithmetic for, plus the posted line the booked amount is read from.
-      </p>
-    </div>
-  );
-}
-
-function FaultRow({ finding }: { finding: FormulaFinding }) {
-  return (
-    <Tr>
-      <Td>
-        <Badge tone={FORMULA_FAULT_TONE[finding.fault]}>
-          {FORMULA_FAULT_LABELS[finding.fault]}
-        </Badge>
-      </Td>
-      <Td className="whitespace-nowrap">
-        <span className="font-medium text-foreground">{finding.header || finding.column}</span>
-        {finding.cell ? (
-          <span className="block font-mono text-[10px] text-subtle-foreground">
-            {finding.sheet}!{finding.cell}
-          </span>
-        ) : null}
-      </Td>
-      <Td>
-        {finding.formula ? (
-          <>
-            <p className="font-mono text-[11px] break-all text-foreground">{finding.formula}</p>
-            {finding.in_headers && finding.in_headers !== finding.formula ? (
-              <p className="mt-0.5 font-mono text-[10px] leading-relaxed text-subtle-foreground">
-                {finding.in_headers}
-              </p>
-            ) : null}
-          </>
-        ) : (
-          <NotStated>No formula at all</NotStated>
-        )}
-      </Td>
-      <Td>
-        {finding.expected ? (
-          <p className="font-mono text-[11px] break-all text-foreground">{finding.expected}</p>
-        ) : (
-          <NotStated>Nothing declared</NotStated>
-        )}
-      </Td>
-      <Td className="text-right tabular-nums">
-        {finding.rows_affected > 0 ? (
-          <>
-            <span className="font-medium text-foreground">
-              {finding.rows_affected.toLocaleString()}
-            </span>
-            {finding.rows_checked > 0 ? (
-              <span className="text-subtle-foreground">
-                {' '}
-                / {finding.rows_checked.toLocaleString()}
-              </span>
-            ) : null}
-          </>
-        ) : (
-          <span className="text-subtle-foreground">-</span>
-        )}
-      </Td>
-      <Td>
-        <p className="max-w-prose text-xs leading-relaxed">{finding.why}</p>
-      </Td>
-    </Tr>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
 /*  The basis                                                                  */
 /* -------------------------------------------------------------------------- */
 
@@ -1026,19 +661,25 @@ function FaultRow({ finding }: { finding: FormulaFinding }) {
  * which block of which tab was rebuilt, under which rounding and which
  * tolerance, before any figure above means anything - and whether the basis
  * itself has been signed off.
+ *
+ * Closed by default: it is the conventions a reader consults when they doubt a
+ * figure above, not something to scroll past on every visit. The sign-off badge
+ * rides on the summary rather than inside the panel, so the one thing here that
+ * is a warning is still visible while the block is shut. The print stylesheet
+ * forces it open, so a printed copy carries the basis in full.
  */
 function Basis({ paper }: { paper: EntryRecalculationData }) {
   const { basis, booked } = paper;
 
   return (
-    <section aria-labelledby="entry-recalculation-basis-heading" className="scroll-mt-24">
+    <details className="group scroll-mt-24">
       {/*
         A badge here, and the server's own sentence in the notes below - not the same forty
         words in both places. The badge marks the figures where they are read; the sentence
         sits where the other caveats already are, and a reader who meets one twice within a
         screen of itself reads it as a layout fault rather than as a warning.
       */}
-      <div className="flex flex-wrap items-center gap-2">
+      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 select-none [&::-webkit-details-marker]:hidden">
         <h3
           id="entry-recalculation-basis-heading"
           className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase"
@@ -1051,7 +692,11 @@ function Basis({ paper }: { paper: EntryRecalculationData }) {
             Basis not signed off
           </Badge>
         ) : null}
-      </div>
+        <ChevronDown
+          aria-hidden="true"
+          className="duration-quick ml-auto size-4 shrink-0 text-muted-foreground transition-transform ease-out-soft group-open:rotate-180"
+        />
+      </summary>
 
       <dl className="mt-2 grid gap-px overflow-hidden rounded-card border border-border bg-border shadow-rest sm:grid-cols-2 lg:grid-cols-4">
         <Field
@@ -1094,30 +739,6 @@ function Basis({ paper }: { paper: EntryRecalculationData }) {
           hint={`${paper.rows_total.toLocaleString()} records, one pass`}
         />
       </dl>
-    </section>
-  );
-}
-
-/** What the recalculation could not do, rendered rather than dropped. */
-function Notes({ notes }: { notes: string[] }) {
-  return (
-    <section aria-labelledby="entry-recalculation-notes-heading" className="scroll-mt-24">
-      <h3
-        id="entry-recalculation-notes-heading"
-        className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase"
-      >
-        What this rebuild could not do
-      </h3>
-      <ul className="mt-2 space-y-2 rounded-card border border-border bg-surface-muted/40 p-4">
-        {notes.map((note) => (
-          <li
-            key={note}
-            className="max-w-prose text-xs leading-relaxed text-pretty text-muted-foreground"
-          >
-            {note}
-          </li>
-        ))}
-      </ul>
-    </section>
+    </details>
   );
 }

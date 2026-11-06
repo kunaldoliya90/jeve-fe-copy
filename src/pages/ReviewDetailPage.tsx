@@ -19,7 +19,6 @@ import {
   type ReviewDetail,
   ReviewProgress,
   ReviewResult,
-  ReviewRunSummary,
   useRefreshOnFinish,
   useReview,
   useReviewProgress,
@@ -87,9 +86,7 @@ export default function ReviewDetailPage() {
             </p>
           </div>
         </Card>
-      ) : done && !watched ? (
-        <ReviewRunSummary review={review} />
-      ) : (
+      ) : done && !watched ? null : (
         <ReviewProgress
           events={progress.events}
           progressPct={review.progress_pct}

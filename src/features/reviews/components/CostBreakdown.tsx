@@ -108,11 +108,6 @@ export function CostBreakdown({ review, index }: { review: ReviewDetail; index: 
               </tr>
             </tfoot>
           </TableShell>
-
-          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-            Metered from what each provider reported, never estimated. The total time is the whole
-            review, including the parsing and arithmetic that no model touched.
-          </p>
         </>
       )}
     </Section>

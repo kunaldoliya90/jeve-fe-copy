@@ -7,7 +7,8 @@
  * three" to another. They are also anchors, so a section can be linked to.
  */
 
-import type { ReactNode } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { type ReactNode, useState } from 'react';
 
 import { Card } from '@/components/ui';
 import { cn } from '@/utils/cn';
@@ -70,12 +71,28 @@ export function Section({ index, id, title, aside, children }: SectionProps) {
  * Shared by both work papers rather than written twice. The two had one copy
  * each of this for about a day, which is how the three report tables came to
  * carry two different greys for a header row before `TableShell` existed.
+ *
+ * `collapsible` closes a block that is reference material rather than a
+ * finding — the reader opens it when they want it instead of scrolling past it
+ * every time. The heading stays inside the `summary`, which the HTML spec
+ * allows precisely so a closed disclosure still carries its own name in the
+ * document outline. The print stylesheet (`globals.css`) forces every
+ * disclosure open, so a collapsed block still prints in full.
+ *
+ * `lazy` goes further and does not mount the children until the block is first
+ * opened. Only for a block whose children fetch: a closed `details` still
+ * renders its contents into the DOM, so a grid that queries the server on mount
+ * would pay for a page of rows nobody asked to see. The trade is that a block
+ * never opened has nothing to print, so this is for screen-only tools — a
+ * server-paginated grid cannot print in full by its nature anyway.
  */
 export function Block({
   prefix,
   letter,
   title,
   note,
+  collapsible = false,
+  lazy = false,
   children,
 }: {
   /** The owning section's id, so two work papers on one page keep distinct anchors. */
@@ -83,28 +100,39 @@ export function Block({
   letter: string;
   title: string;
   note?: string | undefined;
+  /** Closed by default, for a block a reader consults rather than reads. */
+  collapsible?: boolean | undefined;
+  /** Hold the children back until first opened. Needs `collapsible`; see above. */
+  lazy?: boolean | undefined;
   children: ReactNode;
 }) {
   const id = `${prefix}-${letter.toLowerCase()}`;
+  // Latched rather than tracking `open`: once mounted the children keep their
+  // own state, so collapsing the block must not throw away the reader's paging
+  // and filters and re-query the server when they open it again.
+  const [opened, setOpened] = useState(false);
 
-  return (
-    <section aria-labelledby={`${id}-heading`} className="scroll-mt-24">
-      <h3
-        id={`${id}-heading`}
-        className="flex items-baseline gap-2.5 text-sm font-semibold text-foreground"
-      >
-        {/*
-          The letter is inside the heading and not aria-hidden, the same way
-          `Section` carries its number: "look at four B" has to work for
-          somebody listening to the report as well as for somebody pointing at
-          it, and the print stylesheet drops `[aria-hidden]` elements outright,
-          so a decorative letter prints as nothing at all.
-        */}
-        <span className="font-mono text-[11px] font-semibold tracking-[0.1em] text-accent-strong">
-          {letter}
-        </span>{' '}
-        {title}
-      </h3>
+  /*
+    The letter is inside the heading and not aria-hidden, the same way
+    `Section` carries its number: "look at four B" has to work for somebody
+    listening to the report as well as for somebody pointing at it, and the
+    print stylesheet drops `[aria-hidden]` elements outright, so a decorative
+    letter prints as nothing at all.
+  */
+  const heading = (
+    <h3
+      id={`${id}-heading`}
+      className="flex items-baseline gap-2.5 text-sm font-semibold text-foreground"
+    >
+      <span className="font-mono text-[11px] font-semibold tracking-[0.1em] text-accent-strong">
+        {letter}
+      </span>{' '}
+      {title}
+    </h3>
+  );
+
+  const body = (
+    <>
       {note ? (
         <p className="mt-1 mb-3 max-w-prose text-xs leading-relaxed text-muted-foreground">
           {note}
@@ -113,6 +141,33 @@ export function Block({
         <div className="mb-3" />
       )}
       {children}
+    </>
+  );
+
+  if (collapsible) {
+    return (
+      <details
+        className="group scroll-mt-24"
+        onToggle={(event) => {
+          if (event.currentTarget.open) setOpened(true);
+        }}
+      >
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2.5 select-none [&::-webkit-details-marker]:hidden">
+          {heading}
+          <ChevronDown
+            aria-hidden="true"
+            className="duration-quick size-4 shrink-0 text-muted-foreground transition-transform ease-out-soft group-open:rotate-180"
+          />
+        </summary>
+        <div className="mt-2">{lazy && !opened ? null : body}</div>
+      </details>
+    );
+  }
+
+  return (
+    <section aria-labelledby={`${id}-heading`} className="scroll-mt-24">
+      {heading}
+      {body}
     </section>
   );
 }

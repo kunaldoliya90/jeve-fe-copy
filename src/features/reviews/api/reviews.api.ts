@@ -86,6 +86,17 @@ export function eventsUrl(reviewId: string): string {
   return `${env.VITE_API_BASE_URL}${BASE}${reviewId}/events/`;
 }
 
+/**
+ * Where to open the exact workbook a review was run on.
+ *
+ * Plain navigation (a link's `href`), not a fetch: the server answers with the file itself
+ * and a `Content-Disposition` naming it, which is what lets a browser open or save it like
+ * any other download.
+ */
+export function workbookUrl(reviewId: string): string {
+  return `${env.VITE_API_BASE_URL}${BASE}${reviewId}/workbook/`;
+}
+
 export function listJeTypes(): Promise<JETypeView[]> {
   return http.get<JETypeView[]>('/jeve/je-types/');
 }

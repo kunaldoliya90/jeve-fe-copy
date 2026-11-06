@@ -470,8 +470,8 @@
       position: static !important;
     }
 
-    /* A parameter tile's checks are one click away on screen so the report
-       reads compactly; a check nobody can click into on paper prints as
+    /* A disclosure is one click away on screen so the report reads compactly;
+       nobody can click into one on paper, and it would otherwise print as
        nothing, so every one of these opens regardless of its screen state. */
     details {
       display: block !important;

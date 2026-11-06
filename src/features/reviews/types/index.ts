@@ -813,6 +813,8 @@ export const SEVERITY_LABELS: Record<ExceptionTest['severity'], string> = {
 export interface ReviewSummary {
   review_id: string;
   file_name: string;
+  /** The name the workbook was uploaded under, less its suffix. `null` until scored. */
+  document_number: string | null;
   je_type: string;
   status: ReviewState;
   score: number | null;

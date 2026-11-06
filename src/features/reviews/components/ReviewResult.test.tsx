@@ -2,14 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { renderWithProviders, screen, within } from '@/testing/test-utils';
 
-import type {
-  AreaView,
-  CheckView,
-  EntryRecalculation,
-  EvidenceView,
-  ReviewDetail,
-  SplitSummary,
-} from '../types';
+import type { AreaView, CheckView, EntryRecalculation, EvidenceView, ReviewDetail } from '../types';
 import { ReviewResult } from './ReviewResult';
 
 function review(overrides: Partial<ReviewDetail> = {}): ReviewDetail {
@@ -162,44 +155,6 @@ function rebuild(overrides: Partial<EntryRecalculation> = {}): EntryRecalculatio
   };
 }
 
-function workPaper(overrides: Partial<SplitSummary> = {}): SplitSummary {
-  return {
-    basis: {
-      table: 'calculation',
-      sheet: 'GPAY',
-      header_row: 8,
-      first_row: 9,
-      last_row: 2467,
-      rows_read: 2273,
-      rows_total: 2459,
-      classification_header: 'FTE/Non-FTE',
-      classification_column: 'AE',
-      classification_meaning: 'fte_classification',
-      tolerance: '0.005',
-      formulas_available: true,
-    },
-    categories: [{ key: 'fte', label: 'FTE', row_count: 2193 }],
-    components: [
-      {
-        header: 'Total Provision CP',
-        column: 'M',
-        meaning: 'cp_provision',
-        number_format: '#,##0.00',
-        amounts: { fte: '27765784.53' },
-        total: '27765784.53',
-        rows_populated: 2193,
-        shares: { fte: 1 },
-      },
-    ],
-    tie_outs: [],
-    rules: [],
-    walkthroughs: [],
-    tests: [],
-    notes: [],
-    ...overrides,
-  };
-}
-
 describe('ReviewResult', () => {
   it('shows the score, the band and that it is provisional', () => {
     renderWithProviders(<ReviewResult review={review()} />);
@@ -214,16 +169,6 @@ describe('ReviewResult', () => {
 
     expect(screen.getByText(/No compliance score/)).toBeInTheDocument();
     expect(screen.getByText(/This is not a zero/)).toBeInTheDocument();
-  });
-
-  it('lists what to do next', () => {
-    renderWithProviders(
-      <ReviewResult
-        review={review({ next_steps: ['Obtain an unredacted employee reference.'] })}
-      />,
-    );
-
-    expect(screen.getByText('Obtain an unredacted employee reference.')).toBeInTheDocument();
   });
 
   it('names a number in the summary that traces to nothing, and keeps the summary', () => {
@@ -263,194 +208,38 @@ describe('ReviewResult', () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/nothing below has passed/i)).toBeInTheDocument();
   });
-
-  it('renders the checks waiting on a person with the reasons they are waiting', () => {
-    renderWithProviders(
-      <ReviewResult
-        review={review({
-          needs_person: [
-            check({
-              check_id: 'population_complete',
-              area: 'population',
-              question: 'Is every in-scope employee present?',
-              status: 'unable_to_validate',
-              needs_review: true,
-              review_reasons: ['incomplete_row_coverage'],
-              conclusion: '1 distinct employee reference over 2,273 rows',
-            }),
-          ],
-        })}
-      />,
-    );
-
-    expect(screen.getByText('Is every in-scope employee present?')).toBeInTheDocument();
-    // Respaced for the reader, with the id the logs use kept on hover. A
-    // reason code set in monospace is how a reviewer ends up asking an
-    // engineer what their own report means.
-    const reason = screen.getByText('Incomplete row coverage');
-    expect(reason).toHaveAttribute('title', 'Reported by the review as incomplete_row_coverage');
-  });
 });
 
-describe('what to do next', () => {
-  const STEPS = [
-    'Obtain an unredacted employee reference and re-run the review.',
-    'Record the approver and the approval date against the vacation_provision_file.',
-  ];
-
-  function panel() {
-    return screen.getByRole('region', { name: 'What to do next' });
-  }
-
-  it('numbers the steps and keeps them in the order the review wrote them', () => {
-    // Often sequential — obtain the file, then re-run — so sorting them would
-    // break an instruction in half.
-    renderWithProviders(<ReviewResult review={review({ next_steps: STEPS })} />);
-
-    const items = within(panel()).getAllByRole('listitem');
-    expect(items).toHaveLength(2);
-    expect(items[0]).toHaveTextContent('1');
-    expect(items[0]).toHaveTextContent('Obtain an unredacted employee reference');
-    expect(panel()).toHaveTextContent('2 steps');
-  });
-
-  it('qualifies the list ahead of it, not under it', () => {
-    renderWithProviders(<ReviewResult review={review({ next_steps: STEPS })} />);
-
-    const framing = within(panel()).getByText(/not a decision/);
-    const first = within(panel()).getAllByRole('listitem')[0];
-    expect(framing.compareDocumentPosition(first!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-  });
-
-  it('words an identifier in a step the way the rest of the report words it', () => {
-    renderWithProviders(<ReviewResult review={review({ next_steps: STEPS })} />);
-
-    expect(within(panel()).getByText('vacation provision file')).toBeInTheDocument();
-  });
-
-  it('copies as a numbered list, headed by the workbook it belongs to', async () => {
-    // This gets pasted somewhere with no idea which review it came from.
-    const { user } = renderWithProviders(<ReviewResult review={review({ next_steps: STEPS })} />);
-
-    await user.click(within(panel()).getByRole('button', { name: /Copy/ }));
-
-    await expect(navigator.clipboard.readText()).resolves.toBe(
-      ['What to do next: 236264.xlsx', `1. ${STEPS[0]!}`, `2. ${STEPS[1]!}`].join('\n'),
-    );
-  });
-
-  it('shows no panel when the review asked for nothing', () => {
-    renderWithProviders(<ReviewResult review={review()} />);
-
-    expect(screen.queryByRole('region', { name: 'What to do next' })).toBeNull();
-  });
-});
-
-describe('the worklist', () => {
-  function panel() {
-    return screen.getByRole('region', { name: /Needs a person/ });
-  }
-
-  const waiting = check({
-    check_id: 'population_complete',
-    area: 'population',
-    question: 'Is every in-scope employee present?',
-    status: 'unable_to_validate',
-    needs_review: true,
-    review_reasons: ['incomplete_row_coverage'],
-    conclusion: 'The employee reference column is redacted, so population_complete is unproven.',
-  });
-
-  it('counts what is waiting, and says that none of it has passed or failed', () => {
-    renderWithProviders(<ReviewResult review={review({ needs_person: [waiting] })} />);
-
-    expect(panel()).toHaveTextContent('1 check waiting');
-    expect(within(panel()).getByText(/has passed or failed/)).toBeInTheDocument();
-  });
-
-  it('carries what the system did establish, worded as the rest of the report words it', () => {
-    renderWithProviders(<ReviewResult review={review({ needs_person: [waiting] })} />);
-
-    // Not left at "unproven" with no sentence: a reviewer starting from that
-    // has to redo work the review has already done.
-    expect(within(panel()).getByText(/The employee reference column is redacted/)).toBeVisible();
-    expect(within(panel()).getByText('population complete')).toBeInTheDocument();
-  });
-
-  it('links each item back to the parameter it was scored under', () => {
-    renderWithProviders(
-      <ReviewResult
-        review={review({ needs_person: [waiting], areas: [area({ area: 'population' })] })}
-      />,
-    );
-
-    expect(
-      within(panel()).getByRole('link', { name: /See it under Employee population/ }),
-    ).toHaveAttribute('href', '#parameter-population');
-  });
-
-  it('offers no link where the check was never scored under a parameter', () => {
-    renderWithProviders(<ReviewResult review={review({ needs_person: [waiting] })} />);
-
-    expect(within(panel()).queryByRole('link')).toBeNull();
-    expect(within(panel()).getByText('Employee population')).toBeInTheDocument();
-  });
-
-  it('numbers the cost breakdown above the worklist', () => {
-    // The cost is on every report and the worklist is not, so the cost is
-    // numbered first: a number that moves report to report cannot be quoted on.
-    renderWithProviders(
-      <ReviewResult review={review({ areas: [area()], needs_person: [waiting] })} />,
-    );
+describe('the numbered spine', () => {
+  it('numbers the cost breakdown directly after the parameters', () => {
+    renderWithProviders(<ReviewResult review={review({ areas: [area()] })} />);
 
     expect(screen.getByRole('region', { name: '3 Key tested parameters' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: /^4 What this review cost/ })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: '5 Needs a person' })).toBeInTheDocument();
   });
 
   it('numbers the cost 5 on a report carrying a register and parameters', () => {
     renderWithProviders(
-      <ReviewResult
-        review={review({
-          evidence: [evidence()],
-          areas: [area()],
-          needs_person: [waiting],
-          split_summary: workPaper(),
-        })}
-      />,
+      <ReviewResult review={review({ evidence: [evidence()], areas: [area()] })} />,
     );
 
     expect(screen.getByRole('region', { name: /^5 What this review cost/ })).toBeInTheDocument();
-    expect(
-      screen.getByRole('region', { name: /^6 Independent recalculation/ }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: '7 Needs a person' })).toBeInTheDocument();
   });
 
   /**
-   * The entry recalculation reads first, the cost sits directly after it, and
-   * the split work paper — what the recalculated amount is composed of —
-   * reads last: a reader wants the rebuilt amount in view before being told
-   * what establishing it cost, and the composition after both.
+   * The entry recalculation reads first and the cost sits directly after it: a
+   * reader wants the rebuilt amount in view before being told what establishing
+   * it cost.
    */
-  it('numbers the entry recalculation, the cost and the split work paper in reading order', () => {
+  it('numbers the entry recalculation ahead of the cost', () => {
     renderWithProviders(
-      <ReviewResult
-        review={review({
-          areas: [area()],
-          recalculation: rebuild(),
-          split_summary: workPaper(),
-        })}
-      />,
+      <ReviewResult review={review({ areas: [area()], recalculation: rebuild() })} />,
     );
 
     expect(
       screen.getByRole('region', { name: /^4 The posted amount, rebuilt from its inputs/ }),
     ).toBeInTheDocument();
     expect(screen.getByRole('region', { name: /^5 What this review cost/ })).toBeInTheDocument();
-    expect(
-      screen.getByRole('region', { name: /^6 Independent recalculation/ }),
-    ).toBeInTheDocument();
   });
 
   /**
@@ -464,19 +253,9 @@ describe('the worklist', () => {
    */
   it.each([
     ['nothing conditional present', review()],
-    ['a worklist only', review({ needs_person: [waiting] })],
     ['an evidence register only', review({ evidence: [evidence()] })],
-    ['a split work paper only', review({ split_summary: workPaper() })],
     ['a rebuilt entry only', review({ recalculation: rebuild() })],
-    [
-      'all of them',
-      review({
-        needs_person: [waiting],
-        evidence: [evidence()],
-        recalculation: rebuild(),
-        split_summary: workPaper(),
-      }),
-    ],
+    ['all of them', review({ evidence: [evidence()], recalculation: rebuild() })],
   ])('numbers the sections 1 upwards with no gaps, given %s', (_case, detail) => {
     renderWithProviders(<ReviewResult review={detail} />);
 
@@ -566,7 +345,6 @@ describe('the executive summary', () => {
           summary: SUMMARY,
           areas: [area({ status: 'fail' })],
           evidence: [evidence({ status: 'missing' })],
-          next_steps: ['Obtain the approval.'],
         })}
       />,
     );
@@ -579,10 +357,6 @@ describe('the executive summary', () => {
     expect(within(trail).getByRole('link', { name: /1 required layer missing/ })).toHaveAttribute(
       'href',
       '#evidence',
-    );
-    expect(within(trail).getByRole('link', { name: 'What to do next' })).toHaveAttribute(
-      'href',
-      '#next-steps',
     );
   });
 
@@ -612,7 +386,6 @@ describe('the entry header', () => {
     expect(screen.getByText('Record to Report')).toBeInTheDocument();
     expect(screen.getByText('Payroll')).toBeInTheDocument();
     expect(screen.getByText('FY26P07')).toBeInTheDocument();
-    expect(screen.getByText(/at 90% confidence/)).toBeInTheDocument();
   });
 
   it('carries what the uploader stated without presenting it as a finding', () => {
@@ -624,20 +397,12 @@ describe('the entry header', () => {
     expect(screen.getByText('High')).toBeInTheDocument();
   });
 
-  it('says when the two readings of the type disagreed, and that the arithmetic stands', () => {
-    renderWithProviders(<ReviewResult review={review({ je_type_corroborated: false })} />);
-
-    expect(screen.getByText(/The two readings differed/)).toBeInTheDocument();
-    expect(screen.getByText(/arithmetic is unaffected/)).toBeInTheDocument();
-  });
-
   it('claims no entry type when nothing in the catalogue matched', () => {
     renderWithProviders(
       <ReviewResult review={review({ je_type: 'unknown', je_type_name: '', process: '' })} />,
     );
 
     expect(screen.getByText('Not recognised')).toBeInTheDocument();
-    expect(screen.getByText(/no entry type.s checks were applied/)).toBeInTheDocument();
   });
 });
 
@@ -668,71 +433,6 @@ describe('the tested parameters', () => {
     expect(
       within(card).getByText(/Scored by the share of rows that came out as exceptions/),
     ).toBeInTheDocument();
-  });
-
-  it('lists the checks that decided a parameter, with what each one found', () => {
-    // The score is an aggregate, and an aggregate explains nothing. These rows
-    // are what a reviewer re-performs from.
-    renderWithProviders(
-      <ReviewResult
-        review={review({
-          areas: [
-            area({
-              checks: [
-                check({
-                  check_id: 'negative_accrual_cleared',
-                  question: 'Are negative accruals cleared?',
-                  status: 'fail',
-                  conclusion: '3 employee rows carry a negative total_accrual.',
-                  exception_count: 3,
-                  financial_impact: '1,638.20',
-                  cells: ['Calc!H12', 'Calc!H88'],
-                }),
-              ],
-            }),
-          ],
-        })}
-      />,
-    );
-
-    const card = screen.getByRole('article', { name: /Accrual re-performance/ });
-    expect(within(card).getByText('Are negative accruals cleared?')).toBeInTheDocument();
-    expect(within(card).getByText('3 exceptions')).toBeInTheDocument();
-    expect(within(card).getByText('Value affected 1,638.20')).toBeInTheDocument();
-    expect(within(card).getByText('Calc!H12 · Calc!H88')).toBeInTheDocument();
-    // The conclusion goes through the same respacing as the written summary,
-    // so no reader meets `total_accrual` worded two ways on one page.
-    expect(within(card).getByText('total accrual')).toBeInTheDocument();
-  });
-
-  it('says on the check itself that it is waiting on a person', () => {
-    renderWithProviders(
-      <ReviewResult
-        review={review({
-          areas: [
-            area({
-              checks: [check({ needs_review: true, review_reasons: ['incomplete_row_coverage'] })],
-            }),
-          ],
-        })}
-      />,
-    );
-
-    const card = screen.getByRole('article', { name: /Accrual re-performance/ });
-    expect(within(card).getByText('Waiting on a person')).toBeInTheDocument();
-  });
-
-  it('names how each check was settled, so a judgement is never read as arithmetic', () => {
-    renderWithProviders(
-      <ReviewResult
-        review={review({
-          areas: [area({ checks: [check({ decided_by: 'judgement' })] })],
-        })}
-      />,
-    );
-
-    const card = screen.getByRole('article', { name: /Accrual re-performance/ });
-    expect(within(card).getByText('Judged by a model')).toBeInTheDocument();
   });
 
   it('counts the parameters by outcome and shows the weighted score', () => {

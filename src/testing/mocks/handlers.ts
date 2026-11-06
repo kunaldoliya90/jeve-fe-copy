@@ -41,6 +41,7 @@ export const mockReviews: readonly ReviewSummary[] = [
   {
     review_id: 'rev_20261021T120000_aaaaaaaa',
     file_name: '236264.xlsx',
+    document_number: '236264',
     je_type: 'vacation-accrual-france',
     status: 'needs_review',
     score: 62.5,
@@ -51,6 +52,7 @@ export const mockReviews: readonly ReviewSummary[] = [
   {
     review_id: 'rev_20261021T110000_bbbbbbbb',
     file_name: '305800.xlsx',
+    document_number: '305800',
     je_type: 'vacation-accrual-france',
     status: 'completed',
     score: 91,
@@ -61,6 +63,7 @@ export const mockReviews: readonly ReviewSummary[] = [
   {
     review_id: 'rev_20261021T100000_cccccccc',
     file_name: 'in-flight.xlsx',
+    document_number: 'in-flight',
     je_type: 'unknown',
     status: 'running',
     score: null,
@@ -114,6 +117,20 @@ export const handlers = [
   }),
 
   http.get(`${API}/jeve/reviews/`, () => HttpResponse.json(reviews)),
+
+  /**
+   * An empty page of recalculation rows.
+   *
+   * The row grid is opened on demand and queries as soon as it mounts, so a test
+   * that opens it reaches the network. Empty rather than populated: no test
+   * asserts on this data, and a handler inventing rows would be a second,
+   * unversioned fixture for a shape the component tests already cover directly.
+   */
+  http.get(`${API}/jeve/reviews/:reviewId/recalculation/rows/`, () =>
+    HttpResponse.json({ rows: [], total: 0, next_cursor: null }),
+  ),
+
+  http.get(`${API}/jeve/reviews/:reviewId/recalculation/groups/`, () => HttpResponse.json([])),
 
   http.delete(`${API}/jeve/reviews/:reviewId/`, ({ params }) => {
     const { reviewId } = params as { reviewId: string };

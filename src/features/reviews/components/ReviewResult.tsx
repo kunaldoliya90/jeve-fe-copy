@@ -23,29 +23,16 @@
  * so a long report costs the browser nothing for the parts nobody has reached.
  */
 
-import { ArrowDown, ArrowUp } from 'lucide-react';
-
 import { Reveal } from '@/components/common';
 import { Card } from '@/components/ui';
-import { cn } from '@/utils/cn';
 
-import { termLabel } from '../lib/terms';
-import { AREA_LABELS, type ReviewDetail } from '../types';
-import { CheckFacts, ReviewReasons } from './CheckFacts';
+import type { ReviewDetail } from '../types';
 import { ComplianceScore } from './ComplianceScore';
 import { CostBreakdown } from './CostBreakdown';
 import { EntryHeader } from './EntryHeader';
 import { EntryRecalculation } from './EntryRecalculation';
 import { EvidenceRegister } from './EvidenceRegister';
-import { NextSteps } from './NextSteps';
-import { Prose } from './Prose';
-import { Recalculation } from './Recalculation';
-import { Section } from './Section';
-import { LineagePanel, SheetTable } from './SheetTable';
-import { StatusBadge, TestedParameters } from './TestedParameters';
-
-/** The area key the context file uses for checks that carry no weight. */
-const OBSERVATION_AREA = 'observation';
+import { TestedParameters } from './TestedParameters';
 
 interface ReviewResultProps {
   review: ReviewDetail;
@@ -61,8 +48,6 @@ interface ReviewResultProps {
 const FIRST_ALLOCATED_SECTION = 2;
 
 export function ReviewResult({ review }: ReviewResultProps) {
-  const { workbook } = review;
-
   // The numbered spine must not skip a number: the numbers are how one person
   // says "look at four" to another, and a report whose sections run 3, 5, 6
   // reads as one with a section missing. Allocated in reading order rather than
@@ -92,11 +77,6 @@ export function ReviewResult({ review }: ReviewResultProps) {
   // 6 on a report carrying a register, parameters and a recalculation, lower
   // on one that is missing any of them.
   const costIndex = number();
-  // What the recalculation is composed of. Conditional, and below the cost
-  // for the same reason the recalculation is above it: a number taken by a
-  // section that is sometimes absent cannot be quoted onward.
-  const splitIndex = review.split_summary ? number() : 0;
-  const needsPersonIndex = review.needs_person.length > 0 ? number() : 0;
 
   return (
     <div className="space-y-5">
@@ -141,235 +121,12 @@ export function ReviewResult({ review }: ReviewResultProps) {
         <CostBreakdown review={review} index={costIndex} />
       </Reveal>
 
-      {review.split_summary ? (
-        <Reveal index={6}>
-          <Recalculation review={review} index={splitIndex} />
-        </Reveal>
-      ) : null}
-
-      {review.needs_person.length > 0 ? (
-        <Reveal index={7}>
-          <NeedsPerson review={review} index={needsPersonIndex} />
-        </Reveal>
-      ) : null}
-
-      {review.next_steps.length > 0 ? (
-        <Reveal index={8}>
-          <NextSteps review={review} />
-        </Reveal>
-      ) : null}
-
       {review.not_yet_run.length > 0 ? (
-        <Reveal index={8}>
+        <Reveal index={7}>
           <NotYetRun items={review.not_yet_run} />
         </Reveal>
       ) : null}
-
-      {workbook ? (
-        <>
-          <Reveal index={9}>
-            <WorkbookFacts workbook={workbook} />
-          </Reveal>
-
-          {workbook.defect_summary.length > 0 ? (
-            <Reveal index={9}>
-              <Defects lines={workbook.defect_summary} />
-            </Reveal>
-          ) : null}
-
-          <Reveal index={9}>
-            <SheetTable sheets={workbook.sheets} />
-          </Reveal>
-
-          <Reveal index={9}>
-            <LineagePanel lineage={workbook.lineage} />
-          </Reveal>
-        </>
-      ) : null}
     </div>
-  );
-}
-
-function WorkbookFacts({ workbook }: { workbook: NonNullable<ReviewDetail['workbook']> }) {
-  return (
-    <section aria-labelledby="workbook-heading" className="space-y-3 defer-paint">
-      <h2 id="workbook-heading" className="text-sm font-semibold text-foreground">
-        What the file turned out to be
-      </h2>
-
-      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border bg-border shadow-rest sm:grid-cols-4">
-        <Fact label="Sheets" value={workbook.sheet_count} />
-        <Fact label="Tables found" value={workbook.table_count} />
-        <Fact label="Largest table" value={`${workbook.row_count.toLocaleString()} rows`} />
-        <Fact label="Format" value={workbook.workbook_format} />
-      </dl>
-
-      <dl className="grid gap-px overflow-hidden rounded-card border border-border bg-border shadow-rest sm:grid-cols-2">
-        <Fact
-          label="Formulas readable"
-          value={workbook.formulas_available ? 'Yes' : 'No (values only)'}
-          hint={
-            workbook.formulas_available
-              ? undefined
-              : 'Binary workbooks carry no formulas, so lineage and tie-out degrade rather than report nothing.'
-          }
-        />
-        <Fact
-          label="Layout fingerprint"
-          value={workbook.layout_fingerprint.slice(0, 12) || '-'}
-          hint="Identifies the template, not the file: next month's workbook from the same template matches."
-          mono
-        />
-      </dl>
-    </section>
-  );
-}
-
-function Defects({ lines }: { lines: string[] }) {
-  return (
-    <section aria-labelledby="defects-heading" className="space-y-3 defer-paint">
-      <h2 id="defects-heading" className="text-sm font-semibold text-foreground">
-        Observations found in the workbook
-      </h2>
-
-      <Card as="ul" className="divide-y divide-border overflow-hidden">
-        {lines.map((line) => (
-          <li key={line} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-            <span className="text-foreground">{termLabel(line.split(':')[0]?.trim() ?? '')}</span>
-            <span className="font-mono text-xs text-muted-foreground tabular-nums">
-              {line.split(':')[1]?.trim()}
-            </span>
-          </li>
-        ))}
-      </Card>
-
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        Observations are reported, never scored. A formula defect can accompany a failure but is
-        never the only reason for one.
-      </p>
-    </section>
-  );
-}
-
-/**
- * The reviewer's worklist: every check the system would not settle on its own.
- *
- * A numbered section rather than one of the trailing panels, because this is
- * the part of the report somebody has to act on. It was previously a plain
- * heading below the cost breakdown — which put what the review spent above
- * what the review needs, and left the one list with work in it looking like a
- * footnote.
- *
- * Each item carries the four things a reviewer needs before they can start:
- * what was asked, what the system did establish, why it stopped short, and
- * where the rest of the context is.
- *
- * Deliberately not sorted. These arrive in the order of the parameters they
- * came from, so a reviewer working down this list and a reviewer working down
- * section 3 are reading the same report in the same order.
- */
-function NeedsPerson({ review, index }: { review: ReviewDetail; index: number }) {
-  const waiting = review.needs_person;
-  // Only an area that was actually scored has a card to jump back to.
-  const scored = new Set(review.areas.map((area) => area.area));
-
-  return (
-    <Section
-      index={index}
-      id="needs-person"
-      title="Needs a person"
-      aside={
-        <span>
-          <span className="font-semibold text-foreground tabular-nums">{waiting.length}</span> check
-          {waiting.length === 1 ? '' : 's'} waiting
-        </span>
-      }
-    >
-      <p className="-mt-1 mb-4 max-w-prose text-xs leading-relaxed text-muted-foreground">
-        Nothing here has been settled by the system, so nothing here has passed or failed. Each one
-        is waiting on a reviewer to look and decide. These are the judgements the review would not
-        make on its own.
-      </p>
-
-      <ol className="space-y-2.5">
-        {waiting.map((check, position) => (
-          <li
-            key={check.check_id}
-            className="stagger"
-            style={{ '--i': position } as React.CSSProperties}
-          >
-            <Card className="p-4">
-              <div className="flex items-start gap-3">
-                {/* The position in the list, so two people on a call can agree
-                    which one they are talking about. */}
-                <span
-                  aria-hidden
-                  className="mt-px flex size-5 flex-none items-center justify-center rounded-pill bg-warning/20 font-mono text-[11px] font-semibold text-foreground"
-                >
-                  {position + 1}
-                </span>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="text-sm leading-relaxed font-medium text-foreground">
-                      {check.question || check.check_id}
-                    </p>
-                    <StatusBadge status={check.status} />
-                  </div>
-
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {check.area === OBSERVATION_AREA
-                      ? 'Observation · carries no weight in the score'
-                      : (AREA_LABELS[check.area] ?? check.area)}
-                  </p>
-
-                  {/* What the system did establish, which is never nothing. A
-                      reviewer starting from "unproven" and no sentence has to
-                      redo the work the review has already done. */}
-                  {check.conclusion ? (
-                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                      <Prose text={check.conclusion} />
-                    </p>
-                  ) : null}
-
-                  <CheckFacts check={check} />
-                  <ReviewReasons reasons={check.review_reasons} />
-
-                  {scored.has(check.area) ? (
-                    <p className="mt-2.5">
-                      <a
-                        href={`#parameter-${check.area}`}
-                        className="inline-flex press items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline"
-                      >
-                        See it under {AREA_LABELS[check.area] ?? check.area}
-                        <ArrowUp aria-hidden="true" className="size-3" />
-                      </a>
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-            </Card>
-          </li>
-        ))}
-      </ol>
-
-      {/* This section says who has to decide; that one says what to go and
-          get. They were written by the same pass over the same checks and read
-          as two halves of one instruction, so they are joined up rather than
-          left for a reader to find by scrolling. */}
-      {review.next_steps.length > 0 ? (
-        <p className="mt-4 text-xs text-muted-foreground">
-          <a
-            href="#next-steps"
-            className="inline-flex press items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
-          >
-            What to do next
-            <ArrowDown aria-hidden="true" className="size-3" />
-          </a>{' '}
-          lists the specific things to obtain or confirm.
-        </p>
-      ) : null}
-    </Section>
   );
 }
 
@@ -423,34 +180,5 @@ function UntracedNumbers({ numbers }: { numbers: string[] }) {
         ))}
       </ul>
     </Card>
-  );
-}
-
-function Fact({
-  label,
-  value,
-  hint,
-  mono,
-}: {
-  label: string;
-  value: string | number;
-  hint?: string | undefined;
-  mono?: boolean | undefined;
-}) {
-  return (
-    <div className="bg-surface px-4 py-3">
-      <dt className="text-[10px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
-        {label}
-      </dt>
-      <dd
-        className={cn(
-          'mt-1 text-lg font-semibold text-foreground tabular-nums',
-          mono && 'font-mono text-sm',
-        )}
-      >
-        {value}
-      </dd>
-      {hint ? <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{hint}</p> : null}
-    </div>
   );
 }
