@@ -79,7 +79,7 @@ function Gauge({
   return (
     <figure className="hairline-top flex flex-col rounded-card border border-border bg-surface p-4 shadow-lift">
       <figcaption className="text-[10px] font-medium tracking-[0.1em] text-muted-foreground uppercase">
-        Compliance score
+        Compliance score (%)
       </figcaption>
 
       {/* The grid stretches this card to the height of the summary beside it.
@@ -132,9 +132,12 @@ function Gauge({
           </div>
         </div>
 
-        <div className="mt-1 flex justify-between font-mono text-[10px] text-subtle-foreground">
-          <span>0</span>
-          <span>100</span>
+        {/* The scale the dial is read against, at the precision the score is
+            carried in. "0" and "100" read as two more figures on a card full
+            of them; "0.00" and "100.00" read as an axis. */}
+        <div className="mt-1 flex justify-between font-mono text-[10px] text-subtle-foreground tabular-nums">
+          <span>0.00</span>
+          <span>100.00</span>
         </div>
 
         <p className={cn('mt-2 text-center text-sm font-semibold', tone)}>{band ?? '-'}</p>
@@ -162,12 +165,14 @@ function ExecutiveSummary({ review }: { review: ReviewDetail }) {
   const verbatim = [headline, summary].filter(Boolean).join('\n\n');
 
   return (
-    <div className="relative flex flex-col overflow-hidden rounded-card border border-border bg-surface shadow-rest">
-      {/* A single accent edge, the one on the page. It marks the paragraph a
-          reader quotes in a meeting. */}
-      <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] bg-accent" />
+    <div className="relative flex flex-col overflow-hidden rounded-card border border-accent/30 bg-accent/[0.05] shadow-rest">
+      {/* A single accent edge, the one on the page, and the only rule on it
+          wide enough to read as a marker rather than as a border. It marks the
+          paragraph a reader quotes in a meeting. Inset so it reads as a rule
+          laid on the panel rather than as the panel's own left edge. */}
+      <span aria-hidden className="absolute inset-y-3 left-3 w-1.5 rounded-pill bg-accent-strong" />
 
-      <div className="flex-1 p-4 pl-5 sm:p-5 sm:pl-6">
+      <div className="flex-1 p-4 pl-7 sm:p-5 sm:pl-8">
         <div className="flex items-start justify-between gap-3">
           <h3 className="text-sm font-semibold text-foreground">Executive summary</h3>
           {verbatim ? (
@@ -209,7 +214,7 @@ function ExecutiveSummary({ review }: { review: ReviewDetail }) {
       </div>
 
       {points.length > 0 ? (
-        <footer className="border-t border-border-hairline bg-surface-muted/40 px-4 py-3 pl-5 sm:px-5 sm:pl-6">
+        <footer className="border-t border-accent/20 bg-surface/50 px-4 py-3 pl-7 sm:px-5 sm:pl-8">
           <Trail review={review} />
           <AsWritten text={summary} />
         </footer>

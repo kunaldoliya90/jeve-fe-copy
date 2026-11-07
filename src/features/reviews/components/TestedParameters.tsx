@@ -18,6 +18,7 @@
 import { CheckCircle2, CircleDashed, CircleSlash2, TriangleAlert, XCircle } from 'lucide-react';
 
 import { Badge, Card } from '@/components/ui';
+import { cn } from '@/utils/cn';
 
 import { STATUS_TONE } from '../lib/status';
 import {
@@ -87,11 +88,14 @@ export function TestedParameters({ review, index }: { review: ReviewDetail; inde
 
   if (areas.length === 0 && observations.length === 0) return null;
 
+  const working = scoreWorking(areas, review.score);
+
   return (
     <Section
       index={index}
       id="parameters"
       title="Key tested parameters"
+      wash="accent"
       aside={
         review.score !== null ? (
           <span>
@@ -102,6 +106,8 @@ export function TestedParameters({ review, index }: { review: ReviewDetail; inde
       }
     >
       <Tally areas={areas} />
+
+      {working ? <Working working={working} /> : null}
 
       <ol className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {areas.map((area, index) => (
@@ -114,48 +120,163 @@ export function TestedParameters({ review, index }: { review: ReviewDetail; inde
   );
 }
 
-/** The card tone each tally tile reads as. */
-const TILE_TONE: Record<CheckStatus, 'success' | 'danger' | 'warning' | 'default'> = {
-  pass: 'success',
-  fail: 'danger',
-  partial: 'warning',
-  unable_to_validate: 'default',
-  missing_evidence: 'default',
-};
+/**
+ * The outcomes, counted.
+ *
+ * Figures on the section's own ground rather than three bordered tiles. The
+ * tiles were a third card style on a page that already carries parameter cards
+ * inside a washed section, and a bordered box around a single digit reads as
+ * something to click. Colour does the work the borders were doing.
+ */
 
+/**
+ * The colour each count is set in.
+ *
+ * Not `STATUS_TEXT`: that map is for a status set in running text, and the
+ * warning hue at this size on a light ground is too thin to read — which is
+ * why the palette's own warning badge sets its text in `foreground` rather
+ * than in `warning`. `accent-strong` is the one warm token that holds its
+ * contrast in both themes.
+ *
+ * Unproven is deliberately not here. It is counted in the ordinary muted grey
+ * because nothing was established, which is neither a pass nor a failure, and
+ * a colour on it would make it read as one.
+ */
+const COUNT_TEXT: Record<CheckStatus, string> = {
+  pass: 'text-success',
+  fail: 'text-danger',
+  partial: 'text-accent-strong',
+  unable_to_validate: 'text-muted-foreground',
+  missing_evidence: 'text-muted-foreground',
+};
 function Tally({ areas }: { areas: AreaView[] }) {
   const unproven = areas.filter(
     (area) => area.status === 'unable_to_validate' || area.status === 'missing_evidence',
   ).length;
 
   return (
-    <dl role="group" aria-label="Parameter outcomes" className="flex flex-wrap gap-2.5">
+    <dl
+      role="group"
+      aria-label="Parameter outcomes"
+      className="flex flex-wrap gap-x-12 gap-y-4 pl-1"
+    >
       {COUNTED.map(({ status, label }) => (
-        <Card
-          key={status}
-          tone={TILE_TONE[status]}
-          elevation="flat"
-          className="flex items-baseline gap-2 px-3.5 py-2.5"
-        >
-          <dd className="text-xl leading-none font-semibold text-foreground tabular-nums">
+        <div key={status} className="flex flex-col gap-1">
+          <dt className="text-[13px] text-muted-foreground">{label}</dt>
+          <dd
+            className={cn(
+              'text-[1.375rem] leading-none font-semibold tabular-nums',
+              COUNT_TEXT[status],
+            )}
+          >
             {areas.filter((area) => area.status === status).length}
           </dd>
-          <dt className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-            {label}
-          </dt>
-        </Card>
+        </div>
       ))}
       {unproven > 0 ? (
-        <Card tone="default" elevation="flat" className="flex items-baseline gap-2 px-3.5 py-2.5">
-          <dd className="text-xl leading-none font-semibold text-foreground tabular-nums">
+        <div className="flex flex-col gap-1">
+          <dt className="text-[13px] text-muted-foreground">Unproven</dt>
+          <dd className="text-[1.375rem] leading-none font-semibold text-muted-foreground tabular-nums">
             {unproven}
           </dd>
-          <dt className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-            Unproven
-          </dt>
-        </Card>
+        </div>
       ) : null}
     </dl>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  How the score is worked out                                                */
+/* -------------------------------------------------------------------------- */
+
+/** One term of the weighted sum: a parameter, or a run of parameters alike. */
+interface WorkingTerm {
+  label: string;
+  /** How many parameters this term stands for. Above one, they are grouped. */
+  count: number;
+  score: number;
+  weight: number;
+}
+
+interface ScoreWorking {
+  /** The weighted terms, as written. */
+  terms: string;
+  /** What each term contributes. */
+  contributions: string;
+  total: string;
+}
+
+/**
+ * The weighted score, written out as the arithmetic behind it.
+ *
+ * A reviewer asked to defend a 55 has to be able to add it up, and until this
+ * line existed the only way to was to read six cards and do it by hand. Built
+ * from the areas themselves, so it cannot drift from the cards below it.
+ *
+ * Returns `null` rather than a best effort in the two cases where the line
+ * would argue with the figure above it: weights that do not make a whole, and
+ * a sum that does not come to the score the server set. A line of arithmetic
+ * that does not add up costs the report more than its absence does — and where
+ * this is silent the cards are still the full account.
+ *
+ * Runs of parameters sharing a score and a weight collapse into one term: six
+ * terms of which four are identical is not a formula a reader can hold. Only
+ * ever neighbours, so the line still reads in the order the cards are laid out.
+ */
+function scoreWorking(areas: AreaView[], score: number | null): ScoreWorking | null {
+  if (areas.length === 0 || score === null) return null;
+
+  const weighted = areas.reduce((total, area) => total + area.weight, 0);
+  if (Math.abs(weighted - 100) > 0.5) return null;
+
+  const terms: WorkingTerm[] = [];
+  for (const area of areas) {
+    const last = terms.at(-1);
+    if (last !== undefined && alike(last, area)) {
+      last.count += 1;
+    } else {
+      terms.push({
+        label: AREA_LABELS[area.area] ?? area.area,
+        count: 1,
+        score: area.score,
+        weight: area.weight,
+      });
+    }
+  }
+
+  const contribution = (term: WorkingTerm) => (term.count * term.score * term.weight) / 100;
+  const total = terms.reduce((running, term) => running + contribution(term), 0);
+  if (Math.abs(total - score) > 0.5) return null;
+
+  return {
+    terms: terms
+      .map((term) =>
+        term.count === 1
+          ? `${term.label} ${figure(term.score)} × ${figure(term.weight)}%`
+          : `${String(term.count)} checks at ${figure(term.score)} × ${figure(term.weight)}% each`,
+      )
+      .join(' + '),
+    contributions: terms.map((term) => figure(contribution(term))).join(' + '),
+    total: figure(total),
+  };
+}
+
+/** Whether a parameter belongs to the term already being built. */
+function alike(term: WorkingTerm, area: AreaView): boolean {
+  return term.score === area.score && term.weight === area.weight;
+}
+
+/** Two decimals at most, and none at all where the figure is whole. */
+function figure(value: number): string {
+  return Number(value.toFixed(2)).toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+function Working({ working }: { working: ScoreWorking }) {
+  return (
+    <p className="mt-3 pl-1 text-xs leading-relaxed text-muted-foreground">
+      How the score is worked out: {working.terms} = {working.contributions} ={' '}
+      <span className="font-semibold text-foreground tabular-nums">{working.total}</span>
+    </p>
   );
 }
 

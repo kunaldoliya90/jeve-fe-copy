@@ -404,6 +404,39 @@ describe('the entry header', () => {
 
     expect(screen.getByText('Not recognised')).toBeInTheDocument();
   });
+
+  /**
+   * The band, labelled as the compliance it is rather than as a second opinion
+   * on it. It is the one fact in this strip that is a conclusion, so it is also
+   * the one set large.
+   */
+  it('labels the banded score as compliance, and falls back to the band itself', () => {
+    renderWithProviders(<ReviewResult review={review({ risk_rating: 'medium' })} />);
+
+    const strip = screen.getByRole('region', { name: /select journal entry/i });
+    expect(within(strip).getByText('Compliance')).toBeInTheDocument();
+    expect(within(strip).getByText('Medium')).toBeInTheDocument();
+  });
+
+  it('says the entry is not rated rather than printing an all-clear', () => {
+    renderWithProviders(<ReviewResult review={review({ risk_rating: null, band: null })} />);
+
+    const strip = screen.getByRole('region', { name: /select journal entry/i });
+    expect(within(strip).getByText('Not rated')).toBeInTheDocument();
+  });
+
+  /**
+   * The workbook sits among the facts rather than in the heading row: it is the
+   * evidence every one of them was read out of, and a reviewer challenging one
+   * reaches for it immediately.
+   */
+  it('puts the workbook beside the facts that were read out of it', () => {
+    renderWithProviders(<ReviewResult review={review()} />);
+
+    const strip = screen.getByRole('region', { name: /select journal entry/i });
+    const link = within(strip).getByRole('link', { name: /open supporting document/i });
+    expect(link).toHaveAttribute('target', '_blank');
+  });
 });
 
 describe('the tested parameters', () => {
@@ -504,6 +537,56 @@ describe('the tested parameters', () => {
     );
 
     expect(screen.queryByRole('region', { name: 'Also checked, never scored' })).toBeNull();
+  });
+
+  /**
+   * The weighted score, written out so a reviewer asked to defend a 55 can add
+   * it up. Runs of parameters sharing a score and a weight are grouped: six
+   * terms of which four are identical is not a formula a reader can hold.
+   */
+  it('shows the arithmetic behind the weighted score', () => {
+    renderWithProviders(
+      <ReviewResult
+        review={review({
+          score: 55,
+          areas: [
+            area({ area: 'evidence_completeness', weight: 30, score: 50, status: 'partial' }),
+            area({ area: 'calculation_accuracy', weight: 30, score: 0, status: 'fail' }),
+            area({ area: 'evidence_appropriateness', weight: 10, score: 100 }),
+            area({ area: 'period', weight: 10, score: 100 }),
+            area({ area: 'pii', weight: 10, score: 100 }),
+            area({ area: 'trend', weight: 10, score: 100 }),
+          ],
+        })}
+      />,
+    );
+
+    const section = screen.getByRole('region', { name: /Key tested parameters/ });
+    expect(within(section).getByText(/how the score is worked out/i)).toHaveTextContent(
+      'How the score is worked out: Evidence completeness 50 × 30% + ' +
+        'Calculation accuracy 0 × 30% + 4 checks at 100 × 10% each = 15 + 0 + 40 = 55',
+    );
+  });
+
+  /**
+   * The two cases where the line would argue with the figure above it. A line
+   * of arithmetic that does not add up costs this report more than its absence
+   * does, and the cards are the full account either way.
+   */
+  it('prints no working where the weights do not make a whole', () => {
+    renderWithProviders(
+      <ReviewResult review={review({ score: 100, areas: [area({ weight: 25, score: 100 })] })} />,
+    );
+
+    expect(screen.queryByText(/how the score is worked out/i)).not.toBeInTheDocument();
+  });
+
+  it('prints no working where the terms do not come to the score that was set', () => {
+    renderWithProviders(
+      <ReviewResult review={review({ score: 62.5, areas: [area({ weight: 100, score: 100 })] })} />,
+    );
+
+    expect(screen.queryByText(/how the score is worked out/i)).not.toBeInTheDocument();
   });
 
   it('keeps unproven apart from fail', () => {

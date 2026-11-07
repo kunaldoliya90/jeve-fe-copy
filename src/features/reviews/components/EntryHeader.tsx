@@ -27,6 +27,20 @@ const FROM_SCORE =
   'not a second opinion on it.';
 
 /**
+ * How the compliance band is worded in the strip.
+ *
+ * One word, from the rating rather than from the band string: the band reads
+ * "Medium risk" where the strip wants "Medium", and the rating is the same
+ * fact already banded. Where a review carries a band the rating does not cover
+ * — a server wording this UI has not met — the band is shown as it arrived
+ * rather than mapped to the nearest guess.
+ */
+function bandWord(review: ReviewDetail): string | null {
+  if (review.risk_rating) return RISK_LABELS[review.risk_rating];
+  return review.band?.trim() ? review.band : null;
+}
+
+/**
  * How loudly each rating is shown.
  *
  * A high rating is a finding and is coloured like one. A low rating is
@@ -59,27 +73,23 @@ export function EntryHeader({ review }: { review: ReviewDetail }) {
     <Section
       index={1}
       id="entry"
-      title="Journal entry under review"
+      title="Select journal entry"
       aside={
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <span className="font-mono text-xs">
-            {review.file_name}
-            {review.workbook ? ` · ${review.workbook.workbook_format}` : ''}
-          </span>
-          <a
-            href={workbookUrl(review.review_id)}
-            target="_blank"
-            rel="noreferrer"
-            title="Open the workbook this review was run on, as it was uploaded"
-            className="duration-quick inline-flex press items-center gap-1.5 text-xs font-medium text-primary transition-colors ease-out-soft hover:text-primary-active"
-          >
-            <FileSpreadsheet aria-hidden="true" className="size-3.5" />
-            Open supporting document
-          </a>
-        </div>
+        <span className="font-mono text-xs">
+          {review.file_name}
+          {review.workbook ? ` · ${review.workbook.workbook_format}` : ''}
+        </span>
       }
     >
-      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      {/*
+        Auto-fitting tracks rather than a fixed six columns. The strip grew a
+        seventh cell — the link to the workbook, which belongs beside the facts
+        it describes rather than tucked into the heading row — and a hard
+        `lg:grid-cols-6` left it alone on a row of its own. Each track is at
+        least 13.75rem, which is the width at which "Payroll — France vacation
+        accrual" stops wrapping to three lines.
+      */}
+      <dl className="grid grid-cols-[repeat(auto-fit,minmax(13.75rem,1fr))] gap-2">
         <DocumentSelector review={review} />
         <Field label="Process" value={orNothing(review.process, 'Not established')} />
         <Field label="Sub process" value={orNothing(review.sub_process, 'Not established')} />
@@ -95,23 +105,49 @@ export function EntryHeader({ review }: { review: ReviewDetail }) {
           tone={recognised ? 'default' : 'warning'}
         />
         <Field
-          label="Risk rating"
+          label="Compliance"
           value={
-            review.risk_rating ? (
-              RISK_LABELS[review.risk_rating]
-            ) : (
-              // Not "Low". The rating is the banded score, so it is absent
-              // on a review nothing has scored yet and on one stored before
-              // the rating existed. An all-clear printed over either of those
-              // is the one reading this field must never allow.
-              <NotStated>Not rated</NotStated>
-            )
+            // Not "Low". The rating is the banded score, so it is absent
+            // on a review nothing has scored yet and on one stored before
+            // the rating existed. An all-clear printed over either of those
+            // is the one reading this field must never allow.
+            bandWord(review) ?? <NotStated>Not rated</NotStated>
           }
           hint={FROM_SCORE}
           tone={RISK_TONE[review.risk_rating ?? 'none']}
+          emphasis
         />
+        <SupportingDocument review={review} />
       </dl>
     </Section>
+  );
+}
+
+/**
+ * The workbook this review was run on, as a cell of the strip.
+ *
+ * In the grid rather than in the heading row: it is the evidence every other
+ * fact here was read out of, and a reviewer asked to check one of them reaches
+ * for it immediately. Sized to the tiles beside it so the row keeps one
+ * rhythm, and it opens in a new tab — a reviewer who follows it has not
+ * finished with the report.
+ */
+function SupportingDocument({ review }: { review: ReviewDetail }) {
+  // Wrapped: a `dl` may hold only `dt`, `dd` and `div`, and this cell is
+  // neither a term nor a definition — it is the file the terms were read from.
+  return (
+    <div className="flex">
+      <a
+        href={workbookUrl(review.review_id)}
+        target="_blank"
+        rel="noreferrer"
+        title="Open the workbook this review was run on, as it was uploaded"
+        className="duration-quick flex flex-1 press items-center justify-center gap-2 rounded-lg border border-border-strong bg-surface px-3 py-2 text-center text-sm font-medium text-primary shadow-rest transition-colors ease-out-soft hover:border-primary hover:bg-primary/[0.06] hover:text-primary-active"
+      >
+        <FileSpreadsheet aria-hidden="true" className="size-4 shrink-0" />
+        Open supporting document
+      </a>
+    </div>
   );
 }
 

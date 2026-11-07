@@ -29,13 +29,25 @@
  * Never a name, never a personnel reference: the same rule as the work paper
  * below it, for the same reason.
  *
- * Nothing is behind a disclosure. This report is printed and circulated, and a
- * table inside a closed panel prints as a blank.
+ * The section opens as one line: recomputed, booked, variance, whether that
+ * variance is inside the agreed tolerance, and the method in a sentence. That
+ * line is the finding, and it is all most readers of this report want from
+ * this section — the working beneath it ran to several screens of tables
+ * between the parameters above and the cost below, which is a long way to
+ * scroll past arithmetic that reconciled. Everything that was on the page
+ * before is still here, behind the one control that opens it.
+ *
+ * The trade is print: a reader who prints with the working shut prints the
+ * comparison line and not the tables under it. That is deliberate — the line
+ * carries the figures, the variance and the tolerance, which is what a
+ * circulated copy is read for — and a reader who wants the full work paper on
+ * paper opens it first, exactly as they would to read it on screen.
  */
 
 import { AlertTriangle, Check, ChevronDown, Equal, Minus } from 'lucide-react';
+import { useId, useState } from 'react';
 
-import { Badge } from '@/components/ui';
+import { Badge, Button } from '@/components/ui';
 import { cn } from '@/utils/cn';
 
 import { formatAmount, formatExcel, formatVariance } from '../lib/excelFormat';
@@ -56,6 +68,10 @@ import { RecalcRowsExplorer } from './RecalcRowsExplorer';
 import { Block, Field, NotStated, Section } from './Section';
 import { TableShell, Td, Th, Tr } from './TableShell';
 
+/* -------------------------------------------------------------------------- */
+/*  The section                                                                */
+/* -------------------------------------------------------------------------- */
+
 interface EntryRecalculationProps {
   review: ReviewDetail;
   /** Position in the report's numbered spine, allocated by `ReviewResult`. */
@@ -63,6 +79,11 @@ interface EntryRecalculationProps {
 }
 
 export function EntryRecalculation({ review, index }: EntryRecalculationProps) {
+  // Before the early return: a hook cannot sit behind one, and a review with
+  // no work paper renders nothing at all.
+  const [open, setOpen] = useState(false);
+  const detailsId = useId();
+
   const paper = review.recalculation;
   if (!paper) return null;
 
@@ -71,6 +92,7 @@ export function EntryRecalculation({ review, index }: EntryRecalculationProps) {
       index={index}
       id="entry-recalculation"
       title="The posted amount, rebuilt from its inputs"
+      wash="primary"
       aside={
         <span className="flex flex-wrap items-center gap-2">
           <Badge tone={STATUS_TONE[paper.status]}>{STATUS_LABELS[paper.status]}</Badge>
@@ -85,6 +107,229 @@ export function EntryRecalculation({ review, index }: EntryRecalculationProps) {
         </span>
       }
     >
+      <div className="space-y-4">
+        <ComparisonLine
+          paper={paper}
+          open={open}
+          detailsId={detailsId}
+          onToggle={() => {
+            setOpen((wasOpen) => !wasOpen);
+          }}
+        />
+
+        {open ? (
+          <WorkPaper
+            paper={paper}
+            reviewId={review.review_id}
+            id={detailsId}
+            onClose={() => {
+              setOpen(false);
+            }}
+          />
+        ) : null}
+      </div>
+    </Section>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  The comparison line                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The whole comparison on one line, with the control that opens the working.
+ *
+ * A table of one row rather than a strip of tiles, and deliberately so: this
+ * is a work-paper line, it is read in the same shape as the registers above
+ * it, and the column headings are what say which figure is which without a
+ * reader having to infer it from size and colour.
+ */
+function ComparisonLine({
+  paper,
+  open,
+  detailsId,
+  onToggle,
+}: {
+  paper: EntryRecalculationData;
+  open: boolean;
+  detailsId: string;
+  onToggle: () => void;
+}) {
+  return (
+    <TableShell
+      caption="The recomputed total against the booked amount, and the method behind it"
+      minWidth="min-w-[52rem]"
+    >
+      <thead>
+        <tr>
+          <Th className="text-right">Our calculation</Th>
+          <Th className="text-right">Booked in JE</Th>
+          <Th className="text-right">Variance</Th>
+          <Th>Within tolerance</Th>
+          <Th>Method</Th>
+          <Th className="text-right">Details</Th>
+        </tr>
+      </thead>
+      <tbody>
+        <Tr className="hover:bg-transparent">
+          <Td className="text-right font-semibold text-foreground-strong tabular-nums">
+            {formatAmount(paper.recomputed_total)}
+          </Td>
+          <Td className="text-right font-semibold text-foreground-strong tabular-nums">
+            {paper.booked.total === null ? (
+              <NotStated>Not read</NotStated>
+            ) : (
+              formatAmount(paper.booked.total)
+            )}
+          </Td>
+          <Td className="text-right font-semibold tabular-nums">
+            <Variance paper={paper} />
+          </Td>
+          <Td>
+            <Tolerance paper={paper} />
+          </Td>
+          <Td>
+            <Method paper={paper} />
+          </Td>
+          <Td className="text-right">
+            <Button
+              type="button"
+              variant={open ? 'primary' : 'secondary'}
+              size="sm"
+              onClick={onToggle}
+              aria-expanded={open}
+              aria-controls={detailsId}
+            >
+              {open ? 'Hide details' : 'See details'}
+              <ChevronDown
+                aria-hidden="true"
+                className={cn(
+                  'duration-quick transition-transform ease-out-soft',
+                  open && 'rotate-180',
+                )}
+              />
+            </Button>
+          </Td>
+        </Tr>
+      </tbody>
+    </TableShell>
+  );
+}
+
+/** The variance, coloured by what it means rather than by its sign. */
+function Variance({ paper }: { paper: EntryRecalculationData }) {
+  if (paper.difference === null) return <NotStated>Nothing to compare</NotStated>;
+
+  // `accent-strong` rather than `warning` for the middle case: the warning
+  // hue is too light to read as text on a light ground, which is why the
+  // palette's own warning badge sets its text in `foreground` instead.
+  const tone =
+    paper.within_tolerance === null
+      ? 'text-muted-foreground'
+      : paper.ties
+        ? 'text-success'
+        : paper.within_tolerance
+          ? 'text-accent-strong'
+          : 'text-danger';
+
+  return (
+    <>
+      <span className={tone}>{formatVariance(paper.difference)}</span>
+      {paper.difference_pct === null ? null : (
+        <span className="block text-[10px] font-normal text-subtle-foreground">
+          {paper.difference_pct > 0 ? '+' : ''}
+          {paper.difference_pct.toFixed(4)}%
+        </span>
+      )}
+    </>
+  );
+}
+
+/**
+ * Whether the variance is inside the tolerance the business agreed.
+ *
+ * The tolerance is printed with the answer, never on its own: "Yes" means
+ * nothing to a reader who does not know what it was measured against, and the
+ * figure it was measured against is the first thing challenged.
+ */
+function Tolerance({ paper }: { paper: EntryRecalculationData }) {
+  if (paper.within_tolerance === null) {
+    return <NotStated>Nothing to compare</NotStated>;
+  }
+
+  return (
+    <span className={cn('font-medium', paper.within_tolerance ? 'text-foreground' : 'text-danger')}>
+      {paper.within_tolerance ? 'Yes' : 'No'}
+      <span className="font-normal text-subtle-foreground"> ({paper.basis.tolerance_pct}%)</span>
+    </span>
+  );
+}
+
+/**
+ * How the amount was arrived at, in one line.
+ *
+ * The business's own sentence where this entry type has one, and the formula
+ * otherwise. The sentence leads because this is the summary line: a reader
+ * here wants to know the amount was rebuilt from unused leave days and a daily
+ * rate, not which four columns that reads. The columns are a click away, in
+ * the block that exists to name them.
+ */
+function Method({ paper }: { paper: EntryRecalculationData }) {
+  const { explained } = paper.basis;
+  // The summary first, the intro second, and a blank one skipped rather than
+  // rendered: an entry type can carry the walkthrough with either half unwritten.
+  const sentence = [explained?.summary, explained?.intro].find((text) => text?.trim());
+  if (sentence) {
+    return <p className="max-w-prose text-xs leading-relaxed">{sentence}</p>;
+  }
+
+  return (
+    <p className="max-w-prose font-mono text-[11px] leading-relaxed break-words">
+      {paper.basis.formula_in_headers || paper.basis.formula}
+    </p>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  The working                                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Everything behind the line above, in the order it is argued.
+ *
+ * Bordered in the primary hue and set on the card surface rather than on the
+ * section's wash, so a reader can see at a glance where the working starts and
+ * ends — it is long enough that without an edge, the basis at the bottom reads
+ * as belonging to the section rather than to the panel.
+ */
+function WorkPaper({
+  paper,
+  reviewId,
+  id,
+  onClose,
+}: {
+  paper: EntryRecalculationData;
+  reviewId: string;
+  id: string;
+  onClose: () => void;
+}) {
+  return (
+    <section
+      id={id}
+      aria-labelledby={`${id}-heading`}
+      className="animate-rise-sm rounded-card border-2 border-primary/50 bg-surface p-4 shadow-rest sm:p-5"
+    >
+      {/* A `div`, not a `header`: the print stylesheet drops every `header` on
+          the page as chrome, and this one is the panel's own title. */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h3 id={`${id}-heading`} className="text-[0.9375rem] font-semibold text-foreground-strong">
+          Calculation accuracy — details
+        </h3>
+        <Button type="button" variant="secondary" size="sm" onClick={onClose}>
+          Close
+        </Button>
+      </div>
+
       <div className="space-y-6">
         <Comparison paper={paper} />
 
@@ -108,10 +353,10 @@ export function EntryRecalculation({ review, index }: EntryRecalculationProps) {
         </Block>
 
         {/* `lazy`: the grid queries the server on mount, and a closed `details`
-            still renders its children — so without it every review page would
-            fetch a page of rows nobody asked to see. */}
+            still renders its children — so without it every reader who opened
+            this panel would fetch a page of rows nobody asked to see. */}
         <Block prefix="entry-recalculation" letter="C" title="Browse every record" collapsible lazy>
-          <RecalcRowsExplorer reviewId={review.review_id} />
+          <RecalcRowsExplorer reviewId={reviewId} />
         </Block>
 
         <Block prefix="entry-recalculation" letter="D" title="What it was rebuilt from" collapsible>
@@ -120,7 +365,7 @@ export function EntryRecalculation({ review, index }: EntryRecalculationProps) {
 
         <Basis paper={paper} />
       </div>
-    </Section>
+    </section>
   );
 }
 
@@ -207,7 +452,7 @@ function Differs({ paper }: { paper: EntryRecalculationData }) {
             : 'Does not rebuild to the amount that was posted'}
         </p>
 
-        <dl className="mt-4 grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-3">
+        <dl className="mt-4 grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
           <Measure label="Recomputed" value={formatAmount(paper.recomputed_total)} large />
           <Measure label="Booked" value={formatAmount(paper.booked.total)} large />
           <Measure
@@ -219,6 +464,22 @@ function Differs({ paper }: { paper: EntryRecalculationData }) {
                 : `${paper.difference_pct > 0 ? '+' : ''}${paper.difference_pct.toFixed(4)}% of the booked amount`
             }
             tone={tone}
+            large
+          />
+          {/*
+            How much of the entry the difference was measured over. A variance
+            read off a partial rebuild is a different claim from one read off
+            every record, and the two were told apart only by the count in the
+            section heading — a long way from the figure it qualifies.
+          */}
+          <Measure
+            label="Records rebuilt"
+            value={`${paper.rows_recomputed.toLocaleString()} / ${paper.rows_total.toLocaleString()}`}
+            hint={
+              paper.rows_incomplete > 0
+                ? `${paper.rows_incomplete.toLocaleString()} could not be rebuilt`
+                : undefined
+            }
             large
           />
         </dl>

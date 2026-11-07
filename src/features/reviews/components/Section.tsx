@@ -13,6 +13,27 @@ import { type ReactNode, useState } from 'react';
 import { Card } from '@/components/ui';
 import { cn } from '@/utils/cn';
 
+/**
+ * The wash a section carries, so the report's parts are told apart by colour
+ * as well as by number.
+ *
+ * Four washes rather than a free `className`: a reader scrolling a long report
+ * learns that the evidence register is the cool one and the work paper the blue
+ * one, and that only holds while the set is closed. Every wash is a tint of a
+ * palette token, never a literal colour, so each one swaps with the theme — a
+ * hardcoded cream panel is unreadable the moment the page goes dark.
+ */
+const washClass = {
+  /** The default. Recedes, so the cards inside it carry the page. */
+  neutral: '',
+  /** Warm. For the parameters, which are the section a reader argues with. */
+  accent: 'border-accent/30 bg-accent/[0.06]',
+  /** Cool. For the evidence register. */
+  info: 'border-info/25 bg-info/[0.05]',
+  /** For the work papers, which are the arithmetic rather than the finding. */
+  primary: 'border-primary/20 bg-primary/[0.04]',
+} as const;
+
 interface SectionProps {
   /** Position in the report, shown in the badge. */
   index: number;
@@ -20,21 +41,23 @@ interface SectionProps {
   title: string;
   /** Shown right-aligned on the heading row, for a total or a count. */
   aside?: ReactNode;
+  /** The section's background tint. See `washClass`. */
+  wash?: keyof typeof washClass | undefined;
   children: ReactNode;
 }
 
-export function Section({ index, id, title, aside, children }: SectionProps) {
+export function Section({ index, id, title, aside, wash = 'neutral', children }: SectionProps) {
   return (
     <Card
       as="section"
       id={id}
       aria-labelledby={`${id}-heading`}
-      tone="sunken"
+      tone={wash === 'neutral' ? 'sunken' : 'default'}
       elevation="flat"
       // Most of a report is off-screen. Skipping layout and paint for the
       // sections nobody has scrolled to is the single biggest rendering win
       // on this page, and the intrinsic size keeps the scrollbar steady.
-      className="scroll-mt-24 p-4 defer-paint sm:p-5"
+      className={cn('scroll-mt-24 p-4 defer-paint sm:p-5', washClass[wash])}
     >
       <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         {/*
@@ -193,11 +216,21 @@ export function Field({
   value,
   hint,
   tone = 'default',
+  emphasis = false,
 }: {
   label: string;
   value: ReactNode;
   hint?: string | undefined;
   tone?: keyof typeof toneClass | undefined;
+  /**
+   * Centre the card and set the value large.
+   *
+   * For the one fact in the strip that is a conclusion rather than an
+   * identifier — the compliance band. It is read across the room, and a
+   * conclusion set in the same size as a period code is one a reader scans
+   * past.
+   */
+  emphasis?: boolean | undefined;
 }) {
   // Only a plain string can be put in a tooltip; a rendered node is left to
   // the hint alone rather than stringified into something like "[object]".
@@ -207,12 +240,21 @@ export function Field({
   const title = [spoken, hint].filter(Boolean).join('\n') || undefined;
 
   return (
-    <div className={cn('flex flex-col rounded-lg border px-3 py-2 shadow-rest', toneClass[tone])}>
+    <div
+      className={cn(
+        'flex flex-col rounded-lg border px-3 py-2 shadow-rest',
+        toneClass[tone],
+        emphasis && 'items-center justify-center text-center',
+      )}
+    >
       <dt className="text-[10px] font-medium tracking-[0.08em] text-muted-foreground uppercase">
         {label}
       </dt>
       <dd
-        className="mt-1 text-sm leading-snug font-semibold text-pretty break-words hyphens-auto"
+        className={cn(
+          'mt-1 leading-snug font-semibold text-pretty break-words hyphens-auto',
+          emphasis ? 'text-lg sm:text-xl' : 'text-sm',
+        )}
         {...(title ? { title } : {})}
       >
         {value}

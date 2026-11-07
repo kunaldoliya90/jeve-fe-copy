@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { renderWithProviders, screen, within } from '@/testing/test-utils';
+import { fireEvent, renderWithProviders, screen, within } from '@/testing/test-utils';
 
 import type {
   EntryRecalculation as EntryRecalculationData,
@@ -232,8 +232,35 @@ function review(recalculation: EntryRecalculationData | null): ReviewDetail {
   };
 }
 
-function render(recalculation: EntryRecalculationData | null) {
+/**
+ * The section as a reader first meets it: the comparison line, working shut.
+ */
+function renderClosed(recalculation: EntryRecalculationData | null) {
   renderWithProviders(<EntryRecalculation review={review(recalculation)} index={6} />);
+}
+
+/**
+ * The section with its working open, which is where nearly everything in it
+ * lives. Opened here rather than in each test: the disclosure is one control
+ * and asserting on it once (below) says more than twenty clicks would.
+ */
+function render(recalculation: EntryRecalculationData | null) {
+  renderClosed(recalculation);
+  const toggle = screen.queryByRole('button', { name: /see details/i });
+  if (toggle) fireEvent.click(toggle);
+}
+
+/**
+ * The panel the working lives in.
+ *
+ * Scoped queries matter more than they used to: the comparison line above
+ * carries the recomputed total, the booked amount and the variance as well, so
+ * an unscoped `getByText` on any of the three now finds two of them. That is
+ * the design — the line is the finding and the panel is the evidence for it —
+ * and a test that cannot say which copy it means is testing neither.
+ */
+function working(): HTMLElement {
+  return screen.getByRole('region', { name: /calculation accuracy/i });
 }
 
 describe('EntryRecalculation', () => {
@@ -250,7 +277,7 @@ describe('EntryRecalculation', () => {
   it('states the figure once when the entry rebuilds to the cent', () => {
     render(paper());
 
-    const section = screen.getByRole('region', { name: /rebuilt from its inputs/i });
+    const section = working();
     expect(within(section).getByText(/rebuilt to the cent/i)).toBeInTheDocument();
     // Twice: the figure the records rebuild to, and the booked amount it equals.
     // Both are wanted - the second is what makes the first a comparison - but the
@@ -271,7 +298,7 @@ describe('EntryRecalculation', () => {
   it('shows the real difference when the entry ties within tolerance rather than exactly', () => {
     render(paper({ difference: '150.00', difference_pct: 0.0005 }));
 
-    const section = screen.getByRole('region', { name: /rebuilt from its inputs/i });
+    const section = working();
     expect(within(section).getByText(/rebuilt to the cent/i)).toBeInTheDocument();
     expect(within(section).getByText('150.00')).toBeInTheDocument();
   });
@@ -300,7 +327,7 @@ describe('EntryRecalculation', () => {
     );
 
     expect(screen.getByText(/does not rebuild to the amount that was posted/i)).toBeInTheDocument();
-    expect(screen.getByText('172,591.24')).toBeInTheDocument();
+    expect(within(working()).getByText('172,591.24')).toBeInTheDocument();
     expect(screen.getByText(/0\.6055% of the booked amount/)).toBeInTheDocument();
     expect(screen.getByText('Fail')).toBeInTheDocument();
   });
@@ -370,7 +397,9 @@ describe('EntryRecalculation', () => {
   it('falls back to the staged formula where nothing could be expanded', () => {
     render(paper({ basis: { ...paper().basis, formula_expanded: '' } }));
 
-    expect(screen.getByText('Total Provision CP + Rebuilt RTT accrual / 12')).toBeInTheDocument();
+    expect(
+      within(working()).getByText('Total Provision CP + Rebuilt RTT accrual / 12'),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/in stages:/i)).not.toBeInTheDocument();
   });
 
@@ -390,14 +419,16 @@ describe('EntryRecalculation', () => {
     expect(disclosure).not.toHaveAttribute('open');
     expect(screen.getByText('RTT days earned so far')).toBeInTheDocument();
     expect(screen.getByText('10 / 12 x 8 = 6.67 days')).toBeInTheDocument();
-    expect(screen.getByText(/one month of unused rtt/i)).toBeInTheDocument();
+    // The comparison line carries the same sentence as the method it states,
+    // so this one has to say which copy it means.
+    expect(within(working()).getByText(/one month of unused rtt/i)).toBeInTheDocument();
     expect(screen.getByText(/excludes employer social charges/i)).toBeInTheDocument();
   });
 
   it('shows where the records did not reconcile before what the rebuild came from', () => {
     render(paper({ citations: [citation()], citation_count: 1 }));
 
-    const section = screen.getByRole('region', { name: /rebuilt from its inputs/i });
+    const section = working();
     const headings = within(section)
       .getAllByRole('heading')
       .map((heading) => heading.textContent || '');
@@ -478,8 +509,12 @@ describe('EntryRecalculation', () => {
       }),
     );
 
-    expect(screen.getByText('Input missing')).toBeInTheDocument();
-    expect(screen.getByText(/could not be rebuilt/i)).toBeInTheDocument();
+    const table = screen.getByRole('table', { name: /do not agree/i });
+    expect(within(table).getByText('Input missing')).toBeInTheDocument();
+    // Said twice on this report, in two different registers: the measure above
+    // counts the records that could not be rebuilt, this says why one of them
+    // could not. The citation is the one being tested here.
+    expect(within(table).getByText(/could not be rebuilt/i)).toBeInTheDocument();
   });
 
   /**
@@ -566,8 +601,130 @@ describe('EntryRecalculation', () => {
   it('mounts the grid once the reader opens browse every record', async () => {
     const { user } = renderWithProviders(<EntryRecalculation review={review(paper())} index={6} />);
 
+    fireEvent.click(screen.getByRole('button', { name: /see details/i }));
     await user.click(screen.getByText('Browse every record'));
 
     expect(await screen.findByText('Changed or flagged')).toBeInTheDocument();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  The comparison line                                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The line a reader meets before opening anything. It has to carry the whole
+ * finding on its own: the two figures, the variance between them, whether that
+ * variance is inside the tolerance the business agreed, and how the amount was
+ * arrived at. A reader who stops here has still read the section.
+ */
+describe('the comparison line', () => {
+  it('states both figures, the variance and the tolerance it was judged against', () => {
+    renderClosed(
+      paper({
+        status: 'partial',
+        ties: false,
+        within_tolerance: true,
+        booked: { ...paper().booked, total: '28672441.24' },
+        difference: '150.00',
+        difference_pct: 0.0005,
+      }),
+    );
+
+    const line = screen.getByRole('table', {
+      name: /the recomputed total against the booked amount/i,
+    });
+    expect(within(line).getByText('28,672,591.24')).toBeInTheDocument();
+    expect(within(line).getByText('28,672,441.24')).toBeInTheDocument();
+    expect(within(line).getByText('150.00')).toBeInTheDocument();
+    expect(within(line).getByText('Yes')).toBeInTheDocument();
+    // Never the bare answer: "Yes" means nothing without what it was measured
+    // against, and that figure is the first thing a reviewer challenges.
+    expect(within(line).getByText('(0.1%)')).toBeInTheDocument();
+  });
+
+  it('says there was nothing to compare rather than printing a variance of nothing', () => {
+    renderClosed(
+      paper({
+        status: 'unable_to_validate',
+        ties: false,
+        within_tolerance: null,
+        difference: null,
+        difference_pct: null,
+        booked: { ...paper().booked, total: null },
+      }),
+    );
+
+    const line = screen.getByRole('table', {
+      name: /the recomputed total against the booked amount/i,
+    });
+    expect(within(line).getAllByText(/nothing to compare/i)).toHaveLength(2);
+    expect(within(line).queryByText('0.00')).not.toBeInTheDocument();
+  });
+
+  it('states the method as the business words it, where the business has worded it', () => {
+    renderClosed(paper({ basis: basis({ explained: explained() }) }));
+
+    const line = screen.getByRole('table', {
+      name: /the recomputed total against the booked amount/i,
+    });
+    expect(within(line).getByText(/one month of unused rtt/i)).toBeInTheDocument();
+  });
+
+  it('falls back to the formula for an entry type nobody has worded yet', () => {
+    renderClosed(paper());
+
+    const line = screen.getByRole('table', {
+      name: /the recomputed total against the booked amount/i,
+    });
+    expect(
+      within(line).getByText('Total Provision CP + Rebuilt RTT accrual / 12'),
+    ).toBeInTheDocument();
+  });
+
+  /**
+   * The working ran to several screens of tables between the parameters above
+   * and the cost below. Shut, it is one line; open, it is everything it ever
+   * was — so the one thing worth asserting is that nothing in it is mounted
+   * until a reader asks for it.
+   */
+  it('holds the working back until a reader asks for it', () => {
+    renderClosed(paper());
+
+    expect(screen.queryByRole('region', { name: /calculation accuracy/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/rebuilt to the cent/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/what was rebuilt, and under which rules/i)).not.toBeInTheDocument();
+
+    const toggle = screen.getByRole('button', { name: /see details/i });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('opens the working, and shuts it again from either control', () => {
+    renderClosed(paper());
+
+    fireEvent.click(screen.getByRole('button', { name: /see details/i }));
+    expect(working()).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /hide details/i })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('region', { name: /calculation accuracy/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /see details/i }));
+    fireEvent.click(screen.getByRole('button', { name: /hide details/i }));
+    expect(screen.queryByRole('region', { name: /calculation accuracy/i })).not.toBeInTheDocument();
+  });
+
+  it('names the panel it opens, so the control and the panel are tied together', () => {
+    renderClosed(paper());
+
+    const toggle = screen.getByRole('button', { name: /see details/i });
+    const controls = toggle.getAttribute('aria-controls');
+    expect(controls).toBeTruthy();
+
+    fireEvent.click(toggle);
+    expect(working()).toHaveAttribute('id', controls);
   });
 });

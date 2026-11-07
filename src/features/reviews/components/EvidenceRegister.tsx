@@ -12,6 +12,7 @@
  */
 
 import { Badge } from '@/components/ui';
+import { cn } from '@/utils/cn';
 
 import type { EvidenceView, ReviewDetail } from '../types';
 import { Section } from './Section';
@@ -31,6 +32,7 @@ export function EvidenceRegister({ review, index }: { review: ReviewDetail; inde
       index={index}
       id="evidence"
       title="Detailed evidence and validation register"
+      wash="info"
       aside={
         <span>
           <span className="font-semibold text-foreground tabular-nums">
@@ -90,10 +92,19 @@ function Row({ item }: { item: EvidenceView }) {
         {label(item.item)}
       </th>
       <Td>{item.expected || '-'}</Td>
-      <Td>
-        <Badge tone={available ? 'success' : 'danger'} size="sm">
-          {available ? 'Available' : 'Missing'}
-        </Badge>
+      {/*
+        The one column in this report whose cell is tinted rather than carrying
+        a pill. A register is read down its status column before it is read
+        across, and a filled cell is the only form that lets an eye find the
+        missing rows in one pass. The word stays: colour alone is not a status.
+      */}
+      <Td
+        className={cn(
+          'font-medium',
+          available ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger',
+        )}
+      >
+        {available ? 'Available' : 'Missing'}
       </Td>
       <Td>
         <Badge
