@@ -223,6 +223,7 @@ function review(recalculation: EntryRecalculationData | null): ReviewDetail {
     evidence: [],
     recalculation,
     split_summary: null,
+    gaps: [],
     needs_person: [],
     next_steps: [],
     untraced_numbers: [],
