@@ -1,4 +1,4 @@
-# JEVE — Frontend
+# JE Verification Expert — Frontend
 
 React + TypeScript single-page application built with Vite.
 

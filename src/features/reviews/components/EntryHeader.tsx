@@ -17,43 +17,19 @@ import { paths } from '@/config/paths';
 
 import { workbookUrl } from '../api/reviews.api';
 import { useReviewList } from '../api/reviews.queries';
-import { STATE_LABEL, STATE_TONE } from '../lib/status';
-import { isFinished, type ReviewDetail, type ReviewSummary, RISK_LABELS } from '../types';
+import { COMPLIANCE_LEGEND, complianceLevel, STATE_LABEL, STATE_TONE } from '../lib/status';
+import { isFinished, type ReviewDetail, type ReviewSummary } from '../types';
 import { Field, NotStated, Section } from './Section';
 
-/** Where each derived value comes from, for the tooltip on its card. */
-const FROM_SCORE =
-  "From the band this review's score reached. The same fact as the compliance band, " +
-  'not a second opinion on it.';
-
 /**
- * How the compliance band is worded in the strip.
+ * Where the compliance word comes from, for the tooltip on its card.
  *
- * One word, from the rating rather than from the band string: the band reads
- * "Medium risk" where the strip wants "Medium", and the rating is the same
- * fact already banded. Where a review carries a band the rating does not cover
- * — a server wording this UI has not met — the band is shown as it arrived
- * rather than mapped to the nearest guess.
+ * Worth stating on the card, because the obvious reading of a one-word verdict
+ * is the opposite one: the server bands this review "High risk", and the same
+ * 30 is Low compliance. The thresholds are named so a reader can check the
+ * word against the dial below without scrolling to its legend.
  */
-function bandWord(review: ReviewDetail): string | null {
-  if (review.risk_rating) return RISK_LABELS[review.risk_rating];
-  return review.band?.trim() ? review.band : null;
-}
-
-/**
- * How loudly each rating is shown.
- *
- * A high rating is a finding and is coloured like one. A low rating is
- * coloured as a conclusion rather than left plain, because it *is* one now —
- * the review scored above the band threshold. An absent rating stays neutral:
- * it means the review has not been scored yet, which is not good news.
- */
-const RISK_TONE = {
-  high: 'danger',
-  medium: 'warning',
-  low: 'success',
-  none: 'default',
-} as const;
+const FROM_SCORE = `From the score this review reached: ${COMPLIANCE_LEGEND}.`;
 
 /**
  * A value, or the marker that stands in for one nobody supplied.
@@ -68,6 +44,7 @@ function orNothing(value: string | null, wording?: string) {
 
 export function EntryHeader({ review }: { review: ReviewDetail }) {
   const recognised = review.je_type !== 'unknown';
+  const level = complianceLevel(review.score);
 
   return (
     <Section
@@ -107,14 +84,13 @@ export function EntryHeader({ review }: { review: ReviewDetail }) {
         <Field
           label="Compliance"
           value={
-            // Not "Low". The rating is the banded score, so it is absent
-            // on a review nothing has scored yet and on one stored before
-            // the rating existed. An all-clear printed over either of those
-            // is the one reading this field must never allow.
-            bandWord(review) ?? <NotStated>Not rated</NotStated>
+            // Not "Low". An unscored review has no band at all, and an
+            // all-clear — or an alarm — printed over one that was never
+            // scored is the one reading this field must never allow.
+            level ? level.name : <NotStated>Not scored</NotStated>
           }
           hint={FROM_SCORE}
-          tone={RISK_TONE[review.risk_rating ?? 'none']}
+          tone={level?.tone ?? 'default'}
           emphasis
         />
         <SupportingDocument review={review} />

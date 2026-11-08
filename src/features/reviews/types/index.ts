@@ -447,6 +447,8 @@ export interface RelatedRecalcCheck {
   check_id: string;
   /** The check's own question, for a reader's header. */
   label: string;
+  /** The check in two or three words, where the business has named it one. */
+  short: string;
   /** The check's own conclusion, written by code. */
   summary: string;
   /** Worst first, capped the same way this check capped them for itself. */
@@ -526,6 +528,77 @@ export interface RecalcBasis {
   provisional_basis: boolean;
 }
 
+/** One step of the formula, as the business words it on the entry type. */
+export interface WalkthroughStep {
+  id: string;
+  /** The step as one plain sentence, for the numbered list. */
+  line: string;
+  /** The step's name in the worked example beside it. */
+  label: string;
+}
+
+/** The formula in one line and six sentences. `null` where none has been written. */
+export interface Walkthrough {
+  total: string;
+  /** What a record's own amount is called in a table of findings. */
+  stated_label: string;
+  steps: WalkthroughStep[];
+  footnote: string;
+}
+
+/**
+ * The input on a record that does not reconcile, and what it would have to be.
+ *
+ * `expected` is solved by re-running the approved formula, never judged: it is the value
+ * that would make this record's own stated amount come out. Evidence of where to look,
+ * which is why the report asks for the right value rather than announcing it.
+ */
+export interface RowFault {
+  input_id: string;
+  /** The column's own header, as the file spells it. */
+  label: string;
+  cell: string;
+  column: string;
+  value: string | null;
+  expected: string | null;
+  unit: string;
+}
+
+/**
+ * One step of the formula carried out on the record, both ways.
+ *
+ * `differs` is false where the step is unaffected, and then `actual` is the number on its
+ * own — printing the arithmetic twice invites a reader to hunt for a difference that is
+ * not there.
+ */
+export interface RowExampleStep {
+  label: string;
+  correct: string;
+  actual: string;
+  differs: boolean;
+}
+
+/**
+ * One record's difference, traced to the input that carries it.
+ *
+ * `null` where no single input reconciles the record — two wrong inputs, or a file that
+ * does not follow the formula at all. The figures and the citations are on the report
+ * either way.
+ */
+export interface RowDiagnosis {
+  row: number;
+  sheet: string;
+  fault: RowFault | null;
+  where: string;
+  problem: string;
+  impact: string;
+  next_step: string;
+  steps: RowExampleStep[];
+  stated: string | null;
+  recomputed: string | null;
+  difference: string | null;
+}
+
 /**
  * The posted amount, regenerated from the inputs the business approved.
  *
@@ -537,6 +610,10 @@ export interface RecalcBasis {
  */
 export interface EntryRecalculation {
   basis: RecalcBasis;
+  /** The formula in plain words. `null` on a review stored before it was written. */
+  walkthrough: Walkthrough | null;
+  /** The record carrying the difference, traced to one input. `null` where none explains it. */
+  row_diagnosis: RowDiagnosis | null;
   status: CheckStatus;
   /** The outcome in a sentence, written by code from the figures. */
   explanation: string;
@@ -891,20 +968,20 @@ export interface JETypeView {
  * carries those keys forever, and this is the only place that renders them.
  */
 export const AREA_LABELS: Record<string, string> = {
-  evidence_completeness: 'Evidence completeness',
-  evidence_appropriateness: 'Evidence appropriateness',
-  calculation_accuracy: 'Calculation accuracy',
-  pii: 'PII assessment',
-  trend: 'Trend analysis',
+  evidence_completeness: 'Evidence Completeness',
+  evidence_appropriateness: 'Evidence Appropriateness',
+  calculation_accuracy: 'Calculation Accuracy',
+  pii: 'PII Assessment',
+  trend: 'Trend Analysis',
   period: 'Period',
   // Superseded by `calculation_accuracy` — kept for reviews stored before the
   // six-parameter model.
-  population: 'Employee population',
-  classification: 'FTE / non-FTE classification',
-  salary_validation: 'Salary validation',
-  leave_validation: 'Leave balance validation',
-  accrual_reperformance: 'Accrual re-performance',
-  je_reconciliation: 'Journal entry reconciliation',
+  population: 'Employee Population',
+  classification: 'FTE / non-FTE Classification',
+  salary_validation: 'Salary Validation',
+  leave_validation: 'Leave Balance Validation',
+  accrual_reperformance: 'Accrual Re-performance',
+  je_reconciliation: 'Journal Entry Reconciliation',
 };
 
 /**
@@ -919,6 +996,7 @@ export const METHOD_LABELS: Record<string, string> = {
   baseline_share: 'Scored by how much of the required evidence is present',
   exception_rate: 'Scored by the share of rows that came out as exceptions',
   impact_share: 'Scored by the share of value affected',
+  entry_tolerance: 'Scored by whether the entry rebuilds to the posted amount',
 };
 
 /**

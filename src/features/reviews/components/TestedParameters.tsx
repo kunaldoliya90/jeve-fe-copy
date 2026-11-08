@@ -20,13 +20,13 @@ import { CheckCircle2, CircleDashed, CircleSlash2, TriangleAlert, XCircle } from
 import { Badge, Card } from '@/components/ui';
 import { cn } from '@/utils/cn';
 
+import { countInWords, plainReason, statedArea } from '../lib/parameters';
 import { STATUS_TONE } from '../lib/status';
 import {
   AREA_LABELS,
   type AreaView,
   type CheckStatus,
   type CheckView,
-  METHOD_LABELS,
   type ReviewDetail,
   STATUS_LABELS,
 } from '../types';
@@ -83,7 +83,7 @@ const COUNTED: readonly { status: CheckStatus; label: string }[] = [
 ];
 
 export function TestedParameters({ review, index }: { review: ReviewDetail; index: number }) {
-  const { areas } = review;
+  const areas = review.areas.map(statedArea);
   const observations = review.observations.filter(listed);
 
   if (areas.length === 0 && observations.length === 0) return null;
@@ -99,7 +99,7 @@ export function TestedParameters({ review, index }: { review: ReviewDetail; inde
       aside={
         review.score !== null ? (
           <span>
-            Weighted score{' '}
+            Compliance score{' '}
             <span className="font-semibold text-foreground tabular-nums">{review.score}</span>
           </span>
         ) : null
@@ -111,7 +111,7 @@ export function TestedParameters({ review, index }: { review: ReviewDetail; inde
 
       <ol className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {areas.map((area, index) => (
-          <ParameterTile key={area.area} area={area} index={index} />
+          <ParameterTile key={area.area} area={area} review={review} index={index} />
         ))}
       </ol>
 
@@ -253,7 +253,7 @@ function scoreWorking(areas: AreaView[], score: number | null): ScoreWorking | n
       .map((term) =>
         term.count === 1
           ? `${term.label} ${figure(term.score)} × ${figure(term.weight)}%`
-          : `${String(term.count)} checks at ${figure(term.score)} × ${figure(term.weight)}% each`,
+          : `${countInWords(term.count)} other checks ${figure(term.score)} × ${figure(term.weight)}% each`,
       )
       .join(' + '),
     contributions: terms.map((term) => figure(contribution(term))).join(' + '),
@@ -284,9 +284,18 @@ function Working({ working }: { working: ScoreWorking }) {
 /*  One parameter                                                              */
 /* -------------------------------------------------------------------------- */
 
-function ParameterTile({ area, index }: { area: AreaView; index: number }) {
+function ParameterTile({
+  area,
+  review,
+  index,
+}: {
+  area: AreaView;
+  review: ReviewDetail;
+  index: number;
+}) {
   const headingId = `parameter-${area.area}`;
   const label = AREA_LABELS[area.area] ?? area.area;
+  const reason = plainReason(area, review);
 
   return (
     <li className="stagger" style={{ '--i': index } as React.CSSProperties}>
@@ -303,11 +312,11 @@ function ParameterTile({ area, index }: { area: AreaView; index: number }) {
             <StatusBadge status={area.status} />
           </div>
 
-          <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-            {METHOD_LABELS[area.method] ?? area.method}
-          </p>
-
-          <div className="mt-2.5 flex items-end justify-between gap-2">
+          {/* How the parameter is scored is not said here. It is the same
+              sentence on every card of a kind, it is stated once on the plan,
+              and on a tile read in two seconds it crowded out the one line
+              that is about this entry. */}
+          <div className="mt-3 flex items-end justify-between gap-2">
             <p className="flex items-baseline gap-0.5">
               <span className="text-2xl leading-none font-semibold text-foreground tabular-nums">
                 {area.score}
@@ -328,9 +337,9 @@ function ParameterTile({ area, index }: { area: AreaView; index: number }) {
               above, and repeating it here as a finding is what made the old
               card read as though "Weakest check" were something the review
               had concluded. */}
-          {area.reason ? (
+          {reason ? (
             <p className="mt-2 line-clamp-4 text-xs leading-relaxed text-muted-foreground">
-              <Prose text={area.reason} />
+              <Prose text={reason} />
             </p>
           ) : null}
         </div>

@@ -9,7 +9,7 @@ import { z } from 'zod';
  * directly, which is untyped and silently `undefined` when a var is missing.
  */
 const envSchema = z.object({
-  VITE_APP_NAME: z.string().min(1).default('JEVE'),
+  VITE_APP_NAME: z.string().min(1).default('JE Verification Expert'),
 
   VITE_API_BASE_URL: z.string().min(1).default('/api'),
 

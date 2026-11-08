@@ -46,21 +46,19 @@ export function ReviewLayout() {
 
       <header className="sticky top-0 z-40 border-b border-border/70 glass">
         <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-3 px-4 sm:h-16 sm:gap-4">
-          <NavLink to={paths.app.reviews.getHref()} className="group flex items-center gap-2.5">
+          <NavLink
+            to={paths.app.reviews.getHref()}
+            className="group flex min-w-0 items-center gap-2.5"
+          >
             <Mark />
-            <span className="flex flex-col leading-none">
-              <span className="text-sm font-semibold tracking-tight text-foreground-strong">
-                {env.VITE_APP_NAME}
-              </span>
-              {/*
-                The strapline is the first thing to go on a narrow screen. At
-                390px the brand, both nav links and the theme control do not
-                fit on one row, and a sticky header that wraps to two rows
-                costs a line of findings on every page.
-              */}
-              <span className="mt-0.5 hidden text-[11px] text-muted-foreground sm:block">
-                Journal entry review
-              </span>
+            {/*
+              The name is long enough to crowd both nav links and the theme
+              control at 390px, so it shrinks and truncates rather than wrap
+              the sticky header to two rows: every row of permanent furniture
+              is a row of findings somebody has to scroll for.
+            */}
+            <span className="truncate text-sm font-semibold tracking-tight text-foreground-strong">
+              {env.VITE_APP_NAME}
             </span>
           </NavLink>
 

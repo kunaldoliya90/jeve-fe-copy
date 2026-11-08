@@ -114,7 +114,7 @@ function Header({ review }: { review: ReviewDetail }) {
         <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-              Journal entry review
+              JE Verification Expert
             </p>
             <h1 className="mt-1.5 truncate text-2xl font-semibold text-foreground-strong sm:text-[1.75rem]">
               {review.file_name || 'Review'}

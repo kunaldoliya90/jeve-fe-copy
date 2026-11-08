@@ -13,10 +13,11 @@
  * who wants to check how much of the file that score was computed from finds
  * it on the very next card.
  *
- * `not_yet_run` and `untraced_numbers` are first-class panels rather than
- * footnotes, and `untraced_numbers` sits directly under the summary it
- * qualifies. A reader who mistakes an absent judgement for a passed one has
- * been misled, and that is the one failure an audit tool cannot recover from.
+ * `not_yet_run` is a first-class panel rather than a footnote: a reader who
+ * mistakes an absent judgement for a passed one has been misled, and that is
+ * the one failure an audit tool cannot recover from. A figure the summary
+ * could not trace is marked in the sentence that quotes it — see `Prose` —
+ * rather than collected into a panel of its own.
  *
  * Each block fades up as it is scrolled to, one after another. The motion is
  * `opacity` and `transform` only and the sections carry `content-visibility`,
@@ -94,13 +95,6 @@ export function ReviewResult({ review }: ReviewResultProps) {
         <ComplianceScore review={review} index={scoreIndex} />
       </Reveal>
 
-      {/* Directly under the summary it qualifies, wherever that summary sits. */}
-      {review.untraced_numbers.length > 0 ? (
-        <Reveal index={2}>
-          <UntracedNumbers numbers={review.untraced_numbers} />
-        </Reveal>
-      ) : null}
-
       <Reveal index={3}>
         <TestedParameters review={review} index={parametersIndex} />
       </Reveal>
@@ -151,31 +145,6 @@ function NotYetRun({ items }: { items: string[] }) {
           <li key={item} className="flex gap-3 text-sm text-foreground">
             <span aria-hidden className="mt-2 size-1.5 flex-none rounded-full bg-border-strong" />
             <span className="leading-relaxed">{item}</span>
-          </li>
-        ))}
-      </ul>
-    </Card>
-  );
-}
-
-function UntracedNumbers({ numbers }: { numbers: string[] }) {
-  return (
-    <Card as="section" aria-labelledby="untraced-heading" tone="danger" className="p-5 defer-paint">
-      <h2 id="untraced-heading" className="text-sm font-semibold text-danger">
-        Numbers in the summary that trace to nothing
-      </h2>
-      <p className="mt-1.5 text-xs leading-relaxed text-foreground">
-        Every figure in the written summary is matched against the score and the cited evidence.
-        These matched neither. They are named rather than deleted, because a sentence with the
-        figure quietly removed reads as though it had been verified. Do not quote them.
-      </p>
-      <ul className="mt-3 flex flex-wrap gap-2">
-        {numbers.map((number) => (
-          <li
-            key={number}
-            className="rounded-md border border-danger/25 bg-surface px-2 py-1 font-mono text-xs text-danger tabular-nums"
-          >
-            {number}
           </li>
         ))}
       </ul>

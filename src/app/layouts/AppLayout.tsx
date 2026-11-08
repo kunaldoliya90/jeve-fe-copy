@@ -37,7 +37,7 @@ export function AppLayout() {
           <Menu aria-hidden="true" />
         </Button>
 
-        <span className="font-semibold tracking-tight text-foreground-strong">
+        <span className="min-w-0 truncate font-semibold tracking-tight text-foreground-strong">
           {env.VITE_APP_NAME}
         </span>
 

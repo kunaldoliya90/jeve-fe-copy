@@ -56,6 +56,19 @@
   --color-danger-subtle: oklch(0.955 0.03 25);
   --color-info: oklch(0.58 0.14 240);
 
+  /*
+   * The compliance gauge's three bands.
+   *
+   * Their own scale rather than `danger`/`warning`/`success` because the
+   * middle band is the burnt orange the score is printed in, not the amber
+   * of a warning pill: side by side the two read as two different findings.
+   * Low and high deliberately echo `danger` and `success` — a band is a
+   * verdict, and a verdict must not arrive in a fourth colour nobody knows.
+   */
+  --color-band-low: oklch(0.55 0.2 25);
+  --color-band-medium: oklch(0.51 0.16 45);
+  --color-band-high: oklch(0.56 0.135 155);
+
   /* Focus ring, kept as one token so the whole app focuses identically. */
   --color-ring: oklch(0.53 0.175 267);
 
@@ -310,6 +323,10 @@
       --color-danger-subtle: oklch(0.3 0.07 25);
       --color-info: oklch(0.72 0.13 240);
 
+      --color-band-low: oklch(0.68 0.19 25);
+      --color-band-medium: oklch(0.7 0.15 48);
+      --color-band-high: oklch(0.72 0.145 155);
+
       --color-ring: oklch(0.72 0.145 267);
       --color-scrim: oklch(0.08 0.012 267 / 0.62);
 
@@ -358,6 +375,10 @@
     --color-danger-foreground: oklch(0.16 0.015 267);
     --color-danger-subtle: oklch(0.3 0.07 25);
     --color-info: oklch(0.72 0.13 240);
+
+    --color-band-low: oklch(0.68 0.19 25);
+    --color-band-medium: oklch(0.7 0.15 48);
+    --color-band-high: oklch(0.72 0.145 155);
 
     --color-ring: oklch(0.72 0.145 267);
     --color-scrim: oklch(0.08 0.012 267 / 0.62);

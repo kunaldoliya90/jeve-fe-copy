@@ -96,6 +96,8 @@ function evidence(overrides: Partial<EvidenceView> = {}): EvidenceView {
  */
 function rebuild(overrides: Partial<EntryRecalculation> = {}): EntryRecalculation {
   return {
+    walkthrough: null,
+    row_diagnosis: null,
     basis: {
       table: 'calculation',
       sheet: 'GPAY',
@@ -156,24 +158,39 @@ function rebuild(overrides: Partial<EntryRecalculation> = {}): EntryRecalculatio
 }
 
 describe('ReviewResult', () => {
-  it('shows the score, the band and that it is provisional', () => {
+  it('shows the score and the compliance it reached', () => {
     renderWithProviders(<ReviewResult review={review()} />);
 
     expect(screen.getByText('62.5')).toBeInTheDocument();
-    expect(screen.getAllByText('Medium risk').length).toBeGreaterThan(0);
-    expect(screen.getByText(/Provisional/)).toBeInTheDocument();
+    expect(screen.getByText('Medium Compliance')).toBeInTheDocument();
+  });
+
+  /**
+   * The server bands a review by the risk it carries and the report states the
+   * same fact as the compliance it shows. Both readings of a 30 are true and
+   * the words are opposites, so the report must never print one of them.
+   */
+  it('words every band as compliance, never as the risk the server called it', () => {
+    renderWithProviders(<ReviewResult review={review({ score: 30, band: 'High risk' })} />);
+
+    expect(screen.queryByText(/risk/i)).toBeNull();
+    expect(screen.getByText('Low Compliance')).toBeInTheDocument();
+    expect(
+      screen.getByText('Compliance score: 30 out of 100. This is Low compliance.'),
+    ).toBeInTheDocument();
   });
 
   it('says plainly when nothing has been scored', () => {
     renderWithProviders(<ReviewResult review={review({ score: null, band: null })} />);
 
-    expect(screen.getByText(/No compliance score/)).toBeInTheDocument();
+    expect(screen.getByText('No compliance score')).toBeInTheDocument();
     expect(screen.getByText(/This is not a zero/)).toBeInTheDocument();
   });
 
-  it('names a number in the summary that traces to nothing, and keeps the summary', () => {
-    // The guardrail that matters most: the sentence survives, the figure is
-    // flagged. Deleting it would leave prose reading as though it were verified.
+  it('keeps a summary whose figures traced to nothing, and collects them nowhere', () => {
+    // The guardrail that matters most: the sentence survives, and the figure
+    // is still marked where it is quoted — see the executive summary below.
+    // Deleting it would leave prose reading as though it were verified.
     renderWithProviders(
       <ReviewResult
         review={review({
@@ -183,17 +200,10 @@ describe('ReviewResult', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: /trace to nothing/ })).toBeInTheDocument();
-    expect(screen.getByText(/Do not quote them/)).toBeInTheDocument();
     expect(
       screen.getByText('The accrual understates the liability by 918273.45.'),
     ).toBeInTheDocument();
-  });
-
-  it('renders no caution panel when every number traced', () => {
-    renderWithProviders(<ReviewResult review={review()} />);
-
-    expect(screen.queryByRole('heading', { name: /trace to nothing/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /trace to nothing/ })).toBeNull();
   });
 
   it('names what did not run on this review', () => {
@@ -297,7 +307,30 @@ describe('the executive summary', () => {
   it('lays the paragraph out as one line per finding', () => {
     renderWithProviders(<ReviewResult review={review({ summary: SUMMARY })} />);
 
-    expect(within(panel()).getAllByRole('listitem')).toHaveLength(4);
+    // Three of the four sentences report a problem and are listed under the
+    // heading; the one that does not follows it as prose, where the engine
+    // put it.
+    expect(within(panel()).getByText('What needs attention:')).toBeInTheDocument();
+    expect(within(panel()).getAllByRole('listitem')).toHaveLength(3);
+    expect(
+      within(panel()).getByText('No personal data was flagged outside where it belongs.'),
+    ).toBeInTheDocument();
+  });
+
+  it('opens on the score, worded the same way for every review', () => {
+    renderWithProviders(<ReviewResult review={review({ summary: SUMMARY })} />);
+
+    expect(
+      within(panel()).getByText('Compliance score: 62.5 out of 100. This is Medium compliance.'),
+    ).toBeInTheDocument();
+  });
+
+  it('says so plainly when there is no score to open on', () => {
+    renderWithProviders(
+      <ReviewResult review={review({ score: null, band: null, summary: SUMMARY })} />,
+    );
+
+    expect(within(panel()).getByText(/No compliance score was produced/)).toBeInTheDocument();
   });
 
   it('reads a schema name as words, and keeps the name it came from', () => {
@@ -389,12 +422,9 @@ describe('the entry header', () => {
   });
 
   it('carries what the uploader stated without presenting it as a finding', () => {
-    renderWithProviders(
-      <ReviewResult review={review({ document_number: '100122-7', risk_rating: 'high' })} />,
-    );
+    renderWithProviders(<ReviewResult review={review({ document_number: '100122-7' })} />);
 
     expect(screen.getByText('100122-7')).toBeInTheDocument();
-    expect(screen.getByText('High')).toBeInTheDocument();
   });
 
   it('claims no entry type when nothing in the catalogue matched', () => {
@@ -406,23 +436,23 @@ describe('the entry header', () => {
   });
 
   /**
-   * The band, labelled as the compliance it is rather than as a second opinion
-   * on it. It is the one fact in this strip that is a conclusion, so it is also
-   * the one set large.
+   * The compliance the score reached, read off the same thresholds the dial is
+   * read against. It is the one fact in this strip that is a conclusion, so it
+   * is also the one set large — and it must agree with the dial below it.
    */
-  it('labels the banded score as compliance, and falls back to the band itself', () => {
-    renderWithProviders(<ReviewResult review={review({ risk_rating: 'medium' })} />);
+  it('bands the strip on the score, not on the rating the uploader stated', () => {
+    renderWithProviders(<ReviewResult review={review({ score: 30, risk_rating: 'low' })} />);
 
     const strip = screen.getByRole('region', { name: /select journal entry/i });
     expect(within(strip).getByText('Compliance')).toBeInTheDocument();
-    expect(within(strip).getByText('Medium')).toBeInTheDocument();
+    expect(within(strip).getByText('Low')).toBeInTheDocument();
   });
 
-  it('says the entry is not rated rather than printing an all-clear', () => {
-    renderWithProviders(<ReviewResult review={review({ risk_rating: null, band: null })} />);
+  it('says the entry is not scored rather than printing an all-clear', () => {
+    renderWithProviders(<ReviewResult review={review({ score: null, band: null })} />);
 
     const strip = screen.getByRole('region', { name: /select journal entry/i });
-    expect(within(strip).getByText('Not rated')).toBeInTheDocument();
+    expect(within(strip).getByText('Not scored')).toBeInTheDocument();
   });
 
   /**
@@ -451,24 +481,22 @@ describe('the tested parameters', () => {
       />,
     );
 
-    const card = screen.getByRole('article', { name: /Employee population/ });
+    const card = screen.getByRole('article', { name: /Employee Population/ });
     expect(within(card).getByText('99.9')).toBeInTheDocument();
     expect(within(card).getByText('15% weight')).toBeInTheDocument();
     expect(within(card).getByText('Fail')).toBeInTheDocument();
   });
 
-  it('says how a parameter is scored, rather than naming the rule', () => {
+  it('keeps the card to this entry, not to how the parameter is scored', () => {
     renderWithProviders(
       <ReviewResult review={review({ areas: [area({ method: 'exception_rate' })] })} />,
     );
 
-    const card = screen.getByRole('article', { name: /Accrual re-performance/ });
-    expect(
-      within(card).getByText(/Scored by the share of rows that came out as exceptions/),
-    ).toBeInTheDocument();
+    const card = screen.getByRole('article', { name: /Accrual Re-performance/ });
+    expect(within(card).queryByText(/Scored by the share of rows/)).toBeNull();
   });
 
-  it('counts the parameters by outcome and shows the weighted score', () => {
+  it('counts the parameters by outcome and shows the compliance score', () => {
     renderWithProviders(
       <ReviewResult
         review={review({
@@ -482,7 +510,7 @@ describe('the tested parameters', () => {
     );
 
     const section = screen.getByRole('region', { name: /Key tested parameters/ });
-    expect(within(section).getByText(/Weighted score/)).toBeInTheDocument();
+    expect(within(section).getByText(/Compliance score/)).toBeInTheDocument();
 
     const tally = within(section).getByRole('group', { name: 'Parameter outcomes' });
     expect(within(tally).getByText('Pass').closest('div')).toHaveTextContent('2');
@@ -563,8 +591,8 @@ describe('the tested parameters', () => {
 
     const section = screen.getByRole('region', { name: /Key tested parameters/ });
     expect(within(section).getByText(/how the score is worked out/i)).toHaveTextContent(
-      'How the score is worked out: Evidence completeness 50 × 30% + ' +
-        'Calculation accuracy 0 × 30% + 4 checks at 100 × 10% each = 15 + 0 + 40 = 55',
+      'How the score is worked out: Evidence Completeness 50 × 30% + ' +
+        'Calculation Accuracy 0 × 30% + four other checks 100 × 10% each = 15 + 0 + 40 = 55',
     );
   });
 

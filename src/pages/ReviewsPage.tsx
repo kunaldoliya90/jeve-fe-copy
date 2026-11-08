@@ -11,11 +11,7 @@ export default function ReviewsPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-10 px-4 py-10 sm:py-14">
-      <PageHeader
-        eyebrow="Record to report"
-        title="Journal entry review"
-        description="Upload a workbook. Every cell and formula is read, the arithmetic is re-performed in Python, and anything that cannot be proven goes to a person rather than being passed."
-      />
+      <PageHeader eyebrow="Record to report" title="JE Verification Expert" />
 
       <Reveal as="div" index={0}>
         <UploadPanel

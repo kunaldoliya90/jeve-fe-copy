@@ -1,10 +1,8 @@
 /**
  * The compliance score, and the written summary standing behind it.
  *
- * The gauge is read first and argued with afterwards, so it carries its
- * qualifications on its face: a provisional score says so next to the number,
- * and a review with no score shows no dial at all rather than an empty one at
- * zero. Nought out of a hundred and "nobody has checked" are different
+ * A review with no score shows no dial at all rather than an empty one at
+ * zero: nought out of a hundred and "nobody has checked" are different
  * findings, and a dial cannot tell them apart.
  *
  * The summary beside it is the paragraph a reviewer quotes in a meeting: one
@@ -18,14 +16,13 @@
  * always be able to read what was actually written.
  */
 
-import { AlertTriangle, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { AnimatedNumber } from '@/components/common';
-import { Badge } from '@/components/ui';
 import { cn } from '@/utils/cn';
 
-import { BAND_TEXT, BAND_TONE } from '../lib/status';
+import { COMPLIANCE_LEGEND, complianceLevel, formatScore } from '../lib/status';
 import { parseSummary, type SummaryPoint } from '../lib/summary';
 import type { ReviewDetail } from '../types';
 import { CopyButton } from './CopyButton';
@@ -34,34 +31,31 @@ import { Section } from './Section';
 
 export function ComplianceScore({ review, index }: { review: ReviewDetail; index: number }) {
   return (
-    <Section
-      index={index}
-      id="compliance"
-      title="Evidence-led compliance"
-      aside={
-        review.band ? <Badge tone={BAND_TONE[review.band] ?? 'neutral'}>{review.band}</Badge> : null
-      }
-    >
+    <Section index={index} id="compliance" title="Evidence-led compliance">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,16rem)_1fr]">
-        <Gauge score={review.score} band={review.band} provisional={review.provisional} />
+        <Gauge score={review.score} />
         <ExecutiveSummary review={review} />
       </div>
     </Section>
   );
 }
 
+/*
+ * Dial geometry, in the viewBox's own units.
+ *
+ * A thick ring with flat ends rather than a thin one with rounded caps: the
+ * score is the first thing read on the page and a hairline arc reads as a
+ * progress bar. Flat caps also keep a very low score honest — a rounded cap
+ * is half a stroke wide before the arc has travelled at all.
+ */
 const RADIUS = 70;
+const STROKE = 28;
+const CENTER_X = 90;
+const BASELINE = 94;
+const ARC = `M ${String(CENTER_X - RADIUS)} ${String(BASELINE)} A ${String(RADIUS)} ${String(RADIUS)} 0 0 1 ${String(CENTER_X + RADIUS)} ${String(BASELINE)}`;
 const SEMICIRCLE = Math.PI * RADIUS;
 
-function Gauge({
-  score,
-  band,
-  provisional,
-}: {
-  score: number | null;
-  band: string | null;
-  provisional: boolean;
-}) {
+function Gauge({ score }: { score: number | null }) {
   if (score === null) {
     return (
       <div className="flex flex-col items-center justify-center rounded-card border border-warning/40 bg-warning/[0.08] p-5 text-center">
@@ -73,32 +67,30 @@ function Gauge({
     );
   }
 
-  const tone = BAND_TEXT[band ?? ''] ?? 'text-primary';
+  const level = complianceLevel(score);
   const filled = (Math.min(Math.max(score, 0), 100) / 100) * SEMICIRCLE;
 
   return (
     <figure className="hairline-top flex flex-col rounded-card border border-border bg-surface p-4 shadow-lift">
-      <figcaption className="text-[10px] font-medium tracking-[0.1em] text-muted-foreground uppercase">
-        Compliance score (%)
-      </figcaption>
+      <figcaption className="text-xs text-muted-foreground">Compliance score (%)</figcaption>
 
       {/* The grid stretches this card to the height of the summary beside it.
           The caption stays where a caption belongs and the dial takes the rest,
           centred — a dial pinned to the top of a tall card reads as a panel
           that failed to finish loading. */}
       <div className="flex flex-1 flex-col justify-center">
-        <div className="relative mx-auto mt-2 w-full max-w-[16rem]">
+        <div className="relative mx-auto mt-3 w-full max-w-[16rem]">
           <svg
-            viewBox="0 0 180 104"
+            viewBox="0 0 180 110"
             className="w-full"
             role="img"
-            aria-label={`Compliance score ${String(score)} out of 100${band ? `, ${band}` : ''}`}
+            aria-label={`Compliance score ${formatScore(score)} out of 100, ${level.name} compliance`}
           >
             <path
-              d={`M 20 94 A ${String(RADIUS)} ${String(RADIUS)} 0 0 1 160 94`}
+              d={ARC}
               fill="none"
-              strokeWidth="14"
-              strokeLinecap="round"
+              strokeWidth={STROKE}
+              strokeLinecap="butt"
               className="stroke-border"
             />
             {/*
@@ -108,12 +100,12 @@ function Gauge({
               app-wide, which is why there is no branch for it here.
             */}
             <path
-              d={`M 20 94 A ${String(RADIUS)} ${String(RADIUS)} 0 0 1 160 94`}
+              d={ARC}
               fill="none"
-              strokeWidth="14"
-              strokeLinecap="round"
+              strokeWidth={STROKE}
+              strokeLinecap="butt"
               stroke="currentColor"
-              className={cn('animate-arc-sweep', tone)}
+              className={cn('animate-arc-sweep', level.color)}
               style={
                 {
                   strokeDasharray: `${String(filled)} ${String(SEMICIRCLE)}`,
@@ -123,11 +115,13 @@ function Gauge({
             />
           </svg>
 
-          <div className="pointer-events-none absolute inset-x-0 bottom-1 text-center">
+          {/* Sits in the mouth of the dial. Positioned as a share of the box
+              rather than in pixels so it stays put as the card is resized. */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-[17%] text-center">
             <AnimatedNumber
               value={score}
               decimals={Number.isInteger(score) ? 0 : 1}
-              className="text-[2.25rem] leading-none font-semibold text-foreground-strong tabular-nums"
+              className="text-[2.75rem] leading-none font-medium text-foreground tabular-nums"
             />
           </div>
         </div>
@@ -135,17 +129,15 @@ function Gauge({
         {/* The scale the dial is read against, at the precision the score is
             carried in. "0" and "100" read as two more figures on a card full
             of them; "0.00" and "100.00" read as an axis. */}
-        <div className="mt-1 flex justify-between font-mono text-[10px] text-subtle-foreground tabular-nums">
+        <div className="mx-auto flex w-full max-w-[14rem] justify-between text-[11px] text-muted-foreground tabular-nums">
           <span>0.00</span>
           <span>100.00</span>
         </div>
 
-        <p className={cn('mt-2 text-center text-sm font-semibold', tone)}>{band ?? '-'}</p>
-        {provisional ? (
-          <p className="mt-1 text-center text-xs text-muted-foreground">
-            Provisional: a check is still waiting for a person
-          </p>
-        ) : null}
+        <p className={cn('mt-3 text-center text-base font-semibold', level.color)}>
+          {level.name} Compliance
+        </p>
+        <p className="mt-1 text-center text-[11px] text-muted-foreground">{COMPLIANCE_LEGEND}</p>
       </div>
     </figure>
   );
@@ -155,10 +147,37 @@ function Gauge({
 /*  The written summary                                                        */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * The verdict line, written here rather than taken from `headline`.
+ *
+ * `headline` is the engine's own sentence and it varies: sometimes a band,
+ * sometimes a parenthetical, sometimes neither. This line always says the same
+ * three things in the same order, so a reader who sees a hundred of these
+ * reads the same shape every time — and it agrees with the dial beside it,
+ * because both compute the band from the one score. The engine's wording is
+ * still on the page header, and still in what the copy button hands over.
+ */
+function verdictLine(score: number | null): string {
+  if (score === null) return 'No compliance score was produced for this review.';
+  return `Compliance score: ${formatScore(score)} out of 100. This is ${complianceLevel(score).name} compliance.`;
+}
+
 function ExecutiveSummary({ review }: { review: ReviewDetail }) {
-  const { headline, summary, untraced_numbers: untraced } = review;
+  const { headline, summary, score, untraced_numbers: untraced } = review;
 
   const points = useMemo(() => parseSummary(summary, untraced), [summary, untraced]);
+
+  /*
+   * The findings that report a problem, set apart from the ones that do not.
+   *
+   * The split is `summary.ts`'s tone, which over-marks by design: a line it
+   * is unsure about arrives under "What needs attention", never quietly below
+   * it. Both groups keep the order the paragraph wrote them in, so the
+   * sentence naming what passed stays last where the engine put it.
+   */
+  const attention = points.filter((point) => point.tone === 'attention');
+  const rest = points.filter((point) => point.tone !== 'attention');
+
   // What a reviewer pastes into a mail or a ticket: the words as written, not
   // the layout. Copying back a version this component had restructured would
   // put punctuation nobody wrote into a document somebody signs.
@@ -174,43 +193,53 @@ function ExecutiveSummary({ review }: { review: ReviewDetail }) {
 
       <div className="flex-1 p-4 pl-7 sm:p-5 sm:pl-8">
         <div className="flex items-start justify-between gap-3">
-          <h3 className="text-sm font-semibold text-foreground">Executive summary</h3>
+          <h3 className="text-[0.9375rem] font-semibold text-foreground-strong">
+            Executive Summary
+          </h3>
           {verbatim ? (
             <CopyButton text={verbatim} className="-mt-1.5 -mr-2 shrink-0 text-[11px]" />
           ) : null}
         </div>
 
-        {/* The verdict in one line. Left whole: it is already short, already
-            written for a person, and it is what gets read aloud. */}
-        {headline ? (
-          <p className="mt-2 text-[0.9375rem] leading-relaxed font-medium text-pretty text-foreground-strong">
-            {headline}
-          </p>
+        <p className="mt-3 text-sm leading-relaxed text-pretty text-foreground">
+          {verdictLine(score)}
+        </p>
+
+        {attention.length > 0 ? (
+          <>
+            <p className="mt-3 text-sm leading-relaxed text-foreground">What needs attention:</p>
+            <ul className="mt-2 space-y-2.5">
+              {attention.map((point, index) => (
+                <Point key={point.key} point={point} index={index} />
+              ))}
+            </ul>
+          </>
         ) : null}
 
-        {points.length > 0 ? (
-          <ol
-            className={cn(
-              'space-y-2.5',
-              headline ? 'mt-3.5 border-t border-border-hairline pt-3.5' : 'mt-3',
-            )}
-          >
-            {points.map((point, index) => (
-              <Point key={point.key} point={point} index={index} />
+        {rest.length > 0 ? (
+          <div className="mt-3 space-y-2.5">
+            {rest.map((point) => (
+              <p key={point.key} className="text-sm leading-relaxed text-pretty text-foreground">
+                <Line point={point} />
+              </p>
             ))}
-          </ol>
-        ) : summary ? (
-          // Nothing split into findings — a one-clause summary, or wording
-          // this module does not recognise. Shown exactly as it arrived rather
-          // than forced into a shape it does not have.
-          <p className="mt-3 text-sm leading-relaxed whitespace-pre-line text-muted-foreground">
-            {summary}
-          </p>
-        ) : (
-          <p className="mt-3 text-sm text-muted-foreground">
-            No summary was written for this review.
-          </p>
-        )}
+          </div>
+        ) : null}
+
+        {points.length === 0 ? (
+          summary ? (
+            // Nothing split into findings — a one-clause summary, or wording
+            // this module does not recognise. Shown exactly as it arrived
+            // rather than forced into a shape it does not have.
+            <p className="mt-3 text-sm leading-relaxed whitespace-pre-line text-foreground">
+              {summary}
+            </p>
+          ) : (
+            <p className="mt-3 text-sm text-muted-foreground">
+              No summary was written for this review.
+            </p>
+          )
+        ) : null}
       </div>
 
       {points.length > 0 ? (
@@ -223,33 +252,37 @@ function ExecutiveSummary({ review }: { review: ReviewDetail }) {
   );
 }
 
+/** One finding's own words: its opening clause, its body, its citations. */
+function Line({ point }: { point: SummaryPoint }) {
+  return (
+    <>
+      {point.lead ? <span className="font-semibold">{point.lead}: </span> : null}
+      <Segments segments={point.body} />
+      {point.cites.map((reference) => (
+        <Cite key={reference} reference={reference} />
+      ))}
+    </>
+  );
+}
+
 /**
- * One finding, on its own line.
+ * One finding that needs attention, on its own line.
  *
- * The marker is decoration and nothing else — an `aria-hidden` glyph no reader
- * depends on, because the sentence beside it states the finding in full. It
- * exists so an eye scanning a handful of lines lands on the ones reporting a
- * problem first, and the triangle is amber rather than red because this
- * module infers it from wording. An inferred alarm must never look like a
- * scored failure.
+ * The dash is decoration and nothing else — an `aria-hidden` glyph no reader
+ * depends on, because the sentence beside it states the finding in full, and
+ * the heading above the list has already said what these lines are. Nothing
+ * here is coloured or badged: this module infers which lines carry a problem
+ * from their wording, and an inferred alarm must never look like a scored
+ * failure.
  */
 function Point({ point, index }: { point: SummaryPoint; index: number }) {
   return (
-    <li className="flex stagger gap-2.5" style={{ '--i': index } as React.CSSProperties}>
-      {point.tone === 'attention' ? (
-        <AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 flex-none text-warning" />
-      ) : (
-        <span
-          aria-hidden
-          className="mt-[0.4375rem] size-1.5 flex-none rounded-full bg-border-strong"
-        />
-      )}
-      <p className="text-sm leading-relaxed text-muted-foreground">
-        {point.lead ? <span className="font-semibold text-foreground">{point.lead}: </span> : null}
-        <Segments segments={point.body} />
-        {point.cites.map((reference) => (
-          <Cite key={reference} reference={reference} />
-        ))}
+    <li className="flex stagger gap-1.5" style={{ '--i': index } as React.CSSProperties}>
+      <span aria-hidden className="flex-none text-foreground">
+        -
+      </span>
+      <p className="text-sm leading-relaxed text-pretty text-foreground">
+        <Line point={point} />
       </p>
     </li>
   );

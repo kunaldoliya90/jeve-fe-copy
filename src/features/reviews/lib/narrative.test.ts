@@ -268,7 +268,7 @@ describe('buildNarrative', () => {
     });
     // Only the three a reviewer must act on get a line of their own.
     expect(narrative.notable).toHaveLength(3);
-    expect(narrative.notable[0]?.text).toBe('Salary validation: fail.');
+    expect(narrative.notable[0]?.text).toBe('Salary Validation: fail.');
   });
 
   it('counts an observation apart, never as a failure', () => {
@@ -310,7 +310,7 @@ describe('buildNarrative', () => {
 
     expect(narrative.notable).toHaveLength(1);
     expect(narrative.notable[0]?.text).toBe(
-      'Salary validation: unproven on 3 checks, all going to a person.',
+      'Salary Validation: unproven on 3 checks, all going to a person.',
     );
   });
 

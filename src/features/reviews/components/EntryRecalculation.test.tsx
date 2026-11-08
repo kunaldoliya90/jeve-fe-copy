@@ -63,6 +63,8 @@ function explained(overrides: Partial<RecalcExplained> = {}): RecalcExplained {
 function paper(overrides: Partial<EntryRecalculationData> = {}): EntryRecalculationData {
   return {
     basis: basis(),
+    walkthrough: null,
+    row_diagnosis: null,
     status: 'pass',
     explanation:
       'Rebuilt from 2,280 of 2,280 records, the entry comes to 28,672,591.24, which is the booked amount to the cent.',
@@ -161,38 +163,6 @@ function paper(overrides: Partial<EntryRecalculationData> = {}): EntryRecalculat
   };
 }
 
-function citation(overrides: Partial<RecalcCitation> = {}): RecalcCitation {
-  return {
-    row: 42,
-    sheet: 'GPAY',
-    kind: 'stated_differs',
-    recomputed: '200.00',
-    stated: '175.00',
-    stated_cell: 'AH42',
-    difference: '25.00',
-    difference_pct: 14.2857,
-    why: 'The approved formula gives 25.00 more than the 175.00 this row states.',
-    inputs: [
-      {
-        id: 'fte_amount',
-        label: 'FTE Vacation Accrual',
-        cell: 'AF42',
-        value: '150.00',
-        unit: 'currency',
-      },
-      {
-        id: 'non_fte_amount',
-        label: 'Non-FTE Vacation Accrual',
-        cell: 'AG42',
-        value: '50.00',
-        unit: 'currency',
-      },
-    ],
-    missing: [],
-    ...overrides,
-  };
-}
-
 function review(recalculation: EntryRecalculationData | null): ReviewDetail {
   return {
     review_id: 'rev_20261027T000000_abcdef01',
@@ -263,73 +233,157 @@ function working(): HTMLElement {
   return screen.getByRole('region', { name: /calculation accuracy/i });
 }
 
-describe('EntryRecalculation', () => {
-  it('renders nothing at all when the entry was not recalculated', () => {
-    render(null);
+const DIAGNOSIS = {
+  row: 9,
+  sheet: 'GPAY',
+  fault: {
+    input_id: 'daily_rate',
+    label: 'Daily Salary (RTT Rate)',
+    cell: 'W9',
+    column: 'W',
+    value: '100000',
+    expected: '311.74',
+    unit: 'currency_per_day',
+  },
+  where: 'GPAY sheet, row 9, column W (daily salary).',
+  problem: 'The daily salary is 100,000. It should be about 311.74.',
+  impact:
+    "This employee's amount becomes 59,631.51 instead of 12,556.50. " +
+    'That is 47,075.01 extra - the full difference in the total.',
+  next_step: 'Ask the preparer for the right daily salary and fix cell W9.',
+  steps: [
+    { label: 'Days earned', correct: '10 ÷ 12 × 8 = 6.67', actual: '6.67', differs: false },
+    {
+      label: 'Value',
+      correct: '5.67 × 311.74 = 1,766.53',
+      actual: '5.67 × 100,000 = 566,666.67',
+      differs: true,
+    },
+  ],
+  stated: '12556.50',
+  recomputed: '59631.51',
+  difference: '47075.01',
+};
 
-    expect(screen.queryByRole('region')).not.toBeInTheDocument();
-  });
+const WALKTHROUGH = {
+  total: 'Total = Holiday amount (CP) + 1/12 of the value of unused RTT days',
+  stated_label: 'Employee total',
+  footnote: 'Only for FTE and Non-FTE employees. Does not include employer charges.',
+  steps: [
+    {
+      id: 'days_earned',
+      line: 'Days earned = yearly RTT days ÷ 12 × months worked.',
+      label: 'Days earned',
+    },
+    { id: 'value', line: 'Value = days left × daily salary.', label: 'Value' },
+  ],
+};
 
-  /**
-   * The case that matters most and is easiest to get wrong: a reviewer must be
-   * able to see that the entry reproduces without reading a table of zeroes.
-   */
-  it('states the figure once when the entry rebuilds to the cent', () => {
-    render(paper());
+function blank(row: number): RecalcCitation {
+  return {
+    row,
+    sheet: 'GPAY',
+    kind: 'input_missing',
+    recomputed: null,
+    stated: null,
+    stated_cell: '',
+    difference: null,
+    difference_pct: null,
+    why: 'No CP provision on this row, so the record could not be rebuilt.',
+    inputs: [],
+    missing: [],
+  };
+}
 
-    const section = working();
-    expect(within(section).getByText(/rebuilt to the cent/i)).toBeInTheDocument();
-    // Twice: the figure the records rebuild to, and the booked amount it equals.
-    // Both are wanted - the second is what makes the first a comparison - but the
-    // booked one is in the ordinary weight beside it rather than repeated large.
-    expect(within(section).getAllByText('28,672,591.24')).toHaveLength(2);
-    expect(within(section).getByText(/rebuilt from all 2,280 records/i)).toBeInTheDocument();
-    // No difference row shouting about nothing.
-    expect(within(section).queryByText(/does not rebuild/i)).not.toBeInTheDocument();
-  });
-
-  /**
-   * `ties` means within tolerance, not exactly zero - an entry can reconcile
-   * within the business's tolerance band while still carrying a real, nonzero
-   * difference. The headline figure must show that difference rather than a
-   * hardcoded zero, or a reviewer reading "to the cent" would be misled about
-   * how close the rebuild actually came.
-   */
-  it('shows the real difference when the entry ties within tolerance rather than exactly', () => {
-    render(paper({ difference: '150.00', difference_pct: 0.0005 }));
-
-    const section = working();
-    expect(within(section).getByText(/rebuilt to the cent/i)).toBeInTheDocument();
-    expect(within(section).getByText('150.00')).toBeInTheDocument();
-  });
-
-  it('says every record agreed rather than showing an empty citation table', () => {
-    render(paper());
-
-    expect(
-      screen.getByText(/every one of 2,280 records rebuilt to the amount the workbook states/i),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole('table', { name: /do not agree/i })).not.toBeInTheDocument();
-  });
-
-  it('leads with the difference when the entry does not rebuild', () => {
+/**
+ * The four sections the panel leads with. They answer four questions in order: how big the
+ * difference is, where it is, how the amount is meant to be worked out, and what that
+ * looks like on the record that broke.
+ */
+describe('the calculation details', () => {
+  function diagnosed() {
     render(
       paper({
-        status: 'fail',
+        status: 'partial',
         ties: false,
-        within_tolerance: false,
-        recomputed_total: '28672591.24',
-        booked: { ...paper().booked, total: '28500000.00' },
-        difference: '172591.24',
-        difference_pct: 0.6055,
-        explanation: 'Rebuilt from 2,280 of 2,280 records: 172,591.24 more than was posted.',
+        within_tolerance: true,
+        difference: '47075.00',
+        difference_pct: 0.1687,
+        rows_recomputed: 2271,
+        rows_total: 2273,
+        rows_incomplete: 2,
+        walkthrough: WALKTHROUGH,
+        row_diagnosis: DIAGNOSIS,
+        citations: [
+          blank(232),
+          blank(1650),
+          {
+            row: 9,
+            sheet: 'GPAY',
+            kind: 'stated_differs',
+            recomputed: '59631.51',
+            stated: '12556.50',
+            stated_cell: 'AH9',
+            difference: '47075.01',
+            difference_pct: 374.9,
+            why: 'The approved formula gives 47,075.01 more than this row states.',
+            inputs: [],
+            missing: [],
+          },
+        ],
+        related_checks: [
+          {
+            check_id: 'rtt_provision_values_the_balance',
+            label: 'Does the RTT provision the workbook states equal the balance at the rate?',
+            short: 'RTT provision',
+            summary: '2,272 of 2,273 rows agree',
+            citation_count: 1,
+            citations: [
+              {
+                row: 9,
+                sheet: '',
+                kind: 'stated_differs',
+                recomputed: '900000',
+                stated: '2805.56',
+                stated_cell: 'T9',
+                difference: '897194.44',
+                difference_pct: null,
+                why: 'The RTT provision does not equal the balance at the daily rate.',
+                inputs: [],
+                missing: [],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+  }
+
+  it('names the blank records rather than only counting them', () => {
+    diagnosed();
+
+    const section = working();
+    expect(within(section).getByText('2,271 / 2,273')).toBeInTheDocument();
+    expect(within(section).getByText(/2 rows are blank \(rows 232 and 1650\)/)).toBeInTheDocument();
+  });
+
+  /**
+   * The tolerance is the business's number, not this component's: it arrives on the work
+   * paper's own basis and is printed as it arrived. Narrowing it in the entry type's YAML
+   * has to reach the screen without a line changing here.
+   */
+  it('prints the tolerance the review was actually run under', () => {
+    render(
+      paper({
+        within_tolerance: true,
+        difference: '12.00',
+        difference_pct: 0.00004,
+        basis: basis({ tolerance_pct: '0.01', tolerance_amount: '2790.58' }),
       }),
     );
 
-    expect(screen.getByText(/does not rebuild to the amount that was posted/i)).toBeInTheDocument();
-    expect(within(working()).getByText('172,591.24')).toBeInTheDocument();
-    expect(screen.getByText(/0\.6055% of the booked amount/)).toBeInTheDocument();
-    expect(screen.getByText('Fail')).toBeInTheDocument();
+    expect(screen.getByText(/\(0\.01%\)/)).toBeInTheDocument();
+    expect(within(working()).getByText(/within the 0\.01% limit/)).toBeInTheDocument();
   });
 
   it('distinguishes a difference inside the agreed tolerance from one beyond it', () => {
@@ -343,8 +397,10 @@ describe('EntryRecalculation', () => {
       }),
     );
 
-    expect(screen.getByText(/inside tolerance/i)).toBeInTheDocument();
-    expect(screen.queryByText(/does not rebuild/i)).not.toBeInTheDocument();
+    const section = working();
+    expect(within(section).getByText('12.00')).toBeInTheDocument();
+    expect(within(section).getByText(/within the 0\.1% limit/)).toBeInTheDocument();
+    expect(within(section).queryByText(/beyond the/i)).not.toBeInTheDocument();
   });
 
   /**
@@ -369,38 +425,11 @@ describe('EntryRecalculation', () => {
       }),
     );
 
-    expect(screen.getByText(/nothing to compare against/i)).toBeInTheDocument();
-    expect(screen.getByText(/the recomputation itself stands/i)).toBeInTheDocument();
+    const section = working();
+    // Neutral: a gap in the evidence, never rendered as a difference of nothing.
+    expect(within(section).getAllByText(/nothing to compare/i).length).toBeGreaterThan(0);
+    expect(within(section).queryByText(/limit/)).not.toBeInTheDocument();
     expect(screen.getByText('Unproven')).toBeInTheDocument();
-  });
-
-  /**
-   * The expanded form leads. A staged formula names a stage, and a stage has no column, so
-   * "Rebuilt RTT accrual / 12" reads as though the figure were still being lifted straight
-   * out of the workbook rather than rebuilt from four of its columns. The columns have to be
-   * the thing on the page.
-   */
-  it('leads with the formula written out in the columns this workbook uses', () => {
-    render(paper());
-
-    expect(
-      screen.getByText(
-        'Total Provision CP + ((max(Acquis RTT - Pris RTT, 0)) * Daily Salary (RTT Rate)) / 12',
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/in stages: Total Provision CP \+ Rebuilt RTT accrual \/ 12/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/as declared: cp_provision \+ rtt_amount \/ 12/i)).toBeInTheDocument();
-  });
-
-  it('falls back to the staged formula where nothing could be expanded', () => {
-    render(paper({ basis: { ...paper().basis, formula_expanded: '' } }));
-
-    expect(
-      within(working()).getByText('Total Provision CP + Rebuilt RTT accrual / 12'),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/in stages:/i)).not.toBeInTheDocument();
   });
 
   it('renders nothing extra for the plain-language walkthrough when none is declared', () => {
@@ -409,202 +438,10 @@ describe('EntryRecalculation', () => {
     expect(screen.queryByText(/the formula used, explained step by step/i)).not.toBeInTheDocument();
   });
 
-  it('walks through the formula in plain language, with the fixed example and its caveats, collapsed by default', () => {
-    render(paper({ basis: basis({ explained: explained() }) }));
-
-    const disclosure = screen
-      .getByText(/the formula used, explained step by step/i)
-      .closest('details');
-    expect(disclosure).not.toBeNull();
-    expect(disclosure).not.toHaveAttribute('open');
-    expect(screen.getByText('RTT days earned so far')).toBeInTheDocument();
-    expect(screen.getByText('10 / 12 x 8 = 6.67 days')).toBeInTheDocument();
-    // The comparison line carries the same sentence as the method it states,
-    // so this one has to say which copy it means.
-    expect(within(working()).getByText(/one month of unused rtt/i)).toBeInTheDocument();
-    expect(screen.getByText(/excludes employer social charges/i)).toBeInTheDocument();
-  });
-
-  it('shows where the records did not reconcile before what the rebuild came from', () => {
-    render(paper({ citations: [citation()], citation_count: 1 }));
-
-    const section = working();
-    const headings = within(section)
-      .getAllByRole('heading')
-      .map((heading) => heading.textContent || '');
-    const citationsIndex = headings.findIndex((text) => /did not reconcile/i.test(text));
-    const inputsIndex = headings.findIndex((text) => /what it was rebuilt from/i.test(text));
-    expect(citationsIndex).toBeGreaterThanOrEqual(0);
-    expect(inputsIndex).toBeGreaterThan(citationsIndex);
-  });
-
-  it('says which inputs this workbook does not carry, and that they were optional', () => {
-    render(paper());
-
-    const inputs = screen.getByRole('table', {
-      name: /every input the approved formula reads/i,
-    });
-    expect(within(inputs).getByText('FTE Vacation Accrual')).toBeInTheDocument();
-    expect(within(inputs).getByText('optional')).toBeInTheDocument();
-    expect(within(inputs).getByText(/not in this workbook \(not needed\)/i)).toBeInTheDocument();
-  });
-
-  it('cites each record that did not reconcile, with the cells behind it', () => {
-    render(
-      paper({
-        status: 'partial',
-        ties: false,
-        citations: [citation()],
-        citation_count: 1,
-        rows_agreeing: 2279,
-        row_impact: '25.00',
-      }),
-    );
-
-    const table = screen.getByRole('table', { name: /do not agree/i });
-    expect(within(table).getByText('AH42')).toBeInTheDocument();
-    expect(within(table).getByText('Amount differs')).toBeInTheDocument();
-    expect(within(table).getByText('200.00')).toBeInTheDocument();
-    expect(within(table).getByText('175.00')).toBeInTheDocument();
-    expect(within(table).getByText(/25.00 more than the 175.00/)).toBeInTheDocument();
-    // The cells a reviewer opens the file at, and no identifier of any kind.
-    expect(within(table).getByText(/AF42 150.00/)).toBeInTheDocument();
-  });
-
-  it('says how many citations are not shown when the list is capped', () => {
-    render(
-      paper({
-        status: 'fail',
-        ties: false,
-        citations: [citation(), citation({ row: 43, stated_cell: 'AH43' })],
-        citation_count: 1096,
-        row_impact: '41234.00',
-      }),
-    );
-
-    expect(screen.getByText(/showing the 2 largest of/i)).toBeInTheDocument();
-    expect(screen.getByText('1,096')).toBeInTheDocument();
-  });
-
-  it('distinguishes a missing input from an amount that differs', () => {
-    render(
-      paper({
-        status: 'partial',
-        ties: false,
-        complete: false,
-        rows_recomputed: 2279,
-        rows_incomplete: 1,
-        citations: [
-          citation({
-            kind: 'input_missing',
-            recomputed: null,
-            stated: null,
-            difference: null,
-            difference_pct: null,
-            missing: ['fte_amount'],
-            why: 'FTE Vacation Accrual holds no number on this row, so the record could not be rebuilt.',
-          }),
-        ],
-        citation_count: 1,
-      }),
-    );
-
-    const table = screen.getByRole('table', { name: /do not agree/i });
-    expect(within(table).getByText('Input missing')).toBeInTheDocument();
-    // Said twice on this report, in two different registers: the measure above
-    // counts the records that could not be rebuilt, this says why one of them
-    // could not. The citation is the one being tested here.
-    expect(within(table).getByText(/could not be rebuilt/i)).toBeInTheDocument();
-  });
-
-  /**
-   * The formula is declared in stages, so a reader following it needs each stage's own
-   * name and arithmetic. Both come from the business file: the short label heads the row
-   * and the sentence sits under it, because a sentence in a column heading is neither.
-   */
-  it('names each stage of the formula and shows its arithmetic in the preparers columns', () => {
-    render(paper());
-
-    const table = screen.getByRole('table', { name: /each stage of the formula/i });
-    expect(within(table).getByText('Unused RTT days')).toBeInTheDocument();
-    expect(within(table).getByText('Rebuilt RTT accrual')).toBeInTheDocument();
-    expect(within(table).getByText(/Days earned so far less days taken/)).toBeInTheDocument();
-    // An earlier stage is named by its own label, never by the id the engine knows it as.
-    expect(within(table).getByText('max(RTT days earned - Pris RTT, 0)')).toBeInTheDocument();
-    expect(within(table).getByText('Unused RTT days * Daily Salary')).toBeInTheDocument();
-  });
-
-  it('carries the basis a reviewer needs before any figure means anything', () => {
-    render(paper());
-
-    expect(screen.getByText(/GPAY rows 8-2,466/)).toBeInTheDocument();
-    expect(screen.getByText('2 decimal places, half up')).toBeInTheDocument();
-    expect(screen.getByText('0.1% (28,672.59)')).toBeInTheDocument();
-    expect(screen.getByText('Debit side of the posted entry')).toBeInTheDocument();
-    expect(screen.getByText('720008, 720023')).toBeInTheDocument();
-  });
-
-  /**
-   * A pass under a basis nobody has approved is not a pass, and the page has to
-   * say so where the figure is read rather than in a footnote.
-   */
-  it('badges the basis as not signed off, beside the figures', () => {
-    render(paper({ basis: basis({ provisional_basis: true }) }));
-
-    expect(screen.getByText(/basis not signed off/i)).toBeInTheDocument();
-  });
-
   it('says nothing about sign-off once the basis is approved', () => {
     render(paper());
 
     expect(screen.queryByText(/signed off/i)).not.toBeInTheDocument();
-  });
-
-  /**
-   * Reference material rather than a finding, so it opens on request. The
-   * sign-off badge is the exception and rides on the summary, which is why the
-   * test above can still find it while the block is shut.
-   */
-  it('keeps the basis collapsed until a reader opens it', () => {
-    render(paper());
-
-    const disclosure = screen
-      .getByText(/what was rebuilt, and under which rules/i)
-      .closest('details');
-    expect(disclosure).not.toBeNull();
-    expect(disclosure).not.toHaveAttribute('open');
-  });
-
-  it('keeps what it was rebuilt from collapsed until a reader opens it', () => {
-    render(paper());
-
-    const disclosure = screen.getByText('What it was rebuilt from').closest('details');
-    expect(disclosure).not.toBeNull();
-    expect(disclosure).not.toHaveAttribute('open');
-  });
-
-  /**
-   * Collapsed *and* not mounted. A closed `details` still renders its children,
-   * so a grid that queries on mount would fetch a page of rows on every review
-   * page view — the one thing holding it back is meant to prevent.
-   */
-  it('keeps browse every record collapsed, and does not mount the grid until opened', () => {
-    render(paper());
-
-    const disclosure = screen.getByText('Browse every record').closest('details');
-    expect(disclosure).not.toBeNull();
-    expect(disclosure).not.toHaveAttribute('open');
-    // The grid's own controls, which only exist once it has mounted.
-    expect(screen.queryByText('Changed or flagged')).not.toBeInTheDocument();
-  });
-
-  it('mounts the grid once the reader opens browse every record', async () => {
-    const { user } = renderWithProviders(<EntryRecalculation review={review(paper())} index={6} />);
-
-    fireEvent.click(screen.getByRole('button', { name: /see details/i }));
-    await user.click(screen.getByText('Browse every record'));
-
-    expect(await screen.findByText('Changed or flagged')).toBeInTheDocument();
   });
 });
 

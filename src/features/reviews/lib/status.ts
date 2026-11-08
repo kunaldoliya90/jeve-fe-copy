@@ -56,15 +56,48 @@ export const STATUS_TEXT: Record<CheckStatus, string> = {
   fail: 'text-danger',
 };
 
-/** Which way a compliance band reads. The score says where; this says how bad. */
-export const BAND_TONE: Record<string, BadgeTone> = {
-  'High compliance': 'success',
-  'Medium risk': 'warning',
-  'High risk': 'danger',
-};
+/* -------------------------------------------------------------------------- */
+/*  Compliance                                                                 */
+/* -------------------------------------------------------------------------- */
 
-export const BAND_TEXT: Record<string, string> = {
-  'High compliance': 'text-success',
-  'Medium risk': 'text-warning',
-  'High risk': 'text-danger',
-};
+/**
+ * The compliance scale, in one place because three parts of the report say it.
+ *
+ * The server bands a review by the risk it carries — "High risk" — and the
+ * report states the same fact as the compliance it shows. Both readings of a
+ * 30 are true and the two words are opposites, so a page that took one from
+ * the server and computed the other would eventually print "High" beside a
+ * dial reading Low. Everything that words a band therefore computes it here,
+ * from the one score, against the thresholds printed under the dial.
+ */
+export interface ComplianceLevel {
+  name: 'Low' | 'Medium' | 'High';
+  /** Text colour for the band, as a utility class. */
+  color: string;
+  /** How a card carrying the band is toned. */
+  tone: 'danger' | 'warning' | 'success';
+}
+
+const COMPLIANCE_LEVELS = [
+  { name: 'Low', color: 'text-band-low', tone: 'danger' },
+  { name: 'Medium', color: 'text-band-medium', tone: 'warning' },
+  { name: 'High', color: 'text-band-high', tone: 'success' },
+] as const satisfies readonly ComplianceLevel[];
+
+/** The thresholds, in the words printed under the dial. */
+export const COMPLIANCE_LEGEND = 'Below 50 Low · 50–80 Medium · Above 80 High';
+
+/** `null` for a review nothing has scored: an unscored entry is not a Low one. */
+export function complianceLevel(score: number): ComplianceLevel;
+export function complianceLevel(score: number | null): ComplianceLevel | null;
+export function complianceLevel(score: number | null): ComplianceLevel | null {
+  if (score === null) return null;
+  if (score < 50) return COMPLIANCE_LEVELS[0];
+  if (score <= 80) return COMPLIANCE_LEVELS[1];
+  return COMPLIANCE_LEVELS[2];
+}
+
+/** As the report writes a score: a whole number stays whole, 62.5 keeps its half. */
+export function formatScore(score: number): string {
+  return Number.isInteger(score) ? String(score) : score.toFixed(1);
+}
