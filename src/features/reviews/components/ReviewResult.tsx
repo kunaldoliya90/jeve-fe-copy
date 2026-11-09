@@ -24,8 +24,12 @@
  * so a long report costs the browser nothing for the parts nobody has reached.
  */
 
+import { History } from 'lucide-react';
+import { Link } from 'react-router';
+
 import { Reveal } from '@/components/common';
 import { Card } from '@/components/ui';
+import { paths } from '@/config/paths';
 
 import type { ReviewDetail } from '../types';
 import { ComplianceScore } from './ComplianceScore';
@@ -87,6 +91,8 @@ export function ReviewResult({ review }: ReviewResultProps) {
         elements: the sections are a fixed composition, not data, and a map
         would need a synthetic key for every one of them.
       */}
+      {review.reused_from ? <Reused from={review.reused_from} /> : null}
+
       <Reveal index={0}>
         <EntryHeader review={review} />
       </Reveal>
@@ -121,6 +127,43 @@ export function ReviewResult({ review }: ReviewResultProps) {
         </Reveal>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * This report is an earlier review's result, served again.
+ *
+ * Above everything, because it qualifies everything below it. The engine
+ * serves a stored result whenever the same workbook is uploaded again under
+ * unchanged rules, and until this said so the report was indistinguishable
+ * from one produced just now — which is how findings the current engine no
+ * longer reaches were read as its current answer. "Your file was reviewed just
+ * now" and "this is the earlier review's result" are materially different
+ * statements even when the bytes, and so the findings, are the same.
+ *
+ * It links to the review it came from, because the first thing a reviewer
+ * wants on reading this is when that one was run.
+ */
+function Reused({ from }: { from: string }) {
+  return (
+    <Card
+      as="aside"
+      tone="sunken"
+      elevation="flat"
+      className="flex flex-wrap items-center gap-x-2 gap-y-1 border-info/30 bg-info/[0.06] px-4 py-3"
+    >
+      <History aria-hidden="true" className="size-4 flex-none text-info" />
+      <p className="text-sm text-foreground">
+        This workbook had already been reviewed under these rules, so the earlier review&apos;s
+        result is shown. Nothing was re-run.
+      </p>
+      <Link
+        to={paths.app.reviewDetail.getHref(from)}
+        className="press text-sm font-medium text-primary underline-offset-4 hover:underline"
+      >
+        Open the review it came from
+      </Link>
+    </Card>
   );
 }
 

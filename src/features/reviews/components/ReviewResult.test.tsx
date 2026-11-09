@@ -576,9 +576,9 @@ describe('the tested parameters', () => {
     renderWithProviders(
       <ReviewResult
         review={review({
-          score: 55,
+          score: 62.5,
           areas: [
-            area({ area: 'evidence_completeness', weight: 30, score: 50, status: 'partial' }),
+            area({ area: 'evidence_completeness', weight: 30, score: 75, status: 'partial' }),
             area({ area: 'calculation_accuracy', weight: 30, score: 0, status: 'fail' }),
             area({ area: 'evidence_appropriateness', weight: 10, score: 100 }),
             area({ area: 'period', weight: 10, score: 100 }),
@@ -591,8 +591,8 @@ describe('the tested parameters', () => {
 
     const section = screen.getByRole('region', { name: /Key tested parameters/ });
     expect(within(section).getByText(/how the score is worked out/i)).toHaveTextContent(
-      'How the score is worked out: Evidence Completeness 50 × 30% + ' +
-        'Calculation Accuracy 0 × 30% + four other checks 100 × 10% each = 15 + 0 + 40 = 55',
+      'How the score is worked out: Evidence Completeness 75 × 30% + ' +
+        'Calculation Accuracy 0 × 30% + four other checks 100 × 10% each = 22.5 + 0 + 40 = 62.5',
     );
   });
 
@@ -629,6 +629,30 @@ describe('the tested parameters', () => {
   });
 });
 
+describe('a reused result', () => {
+  /**
+   * The report is an earlier review's, and it has to say so. A reviewer whose
+   * upload came back in two seconds is owed the reason, and a stored result
+   * read as a fresh one is how findings the engine no longer reaches get
+   * taken for its current answer.
+   */
+  it('says so, and links to the review it came from', () => {
+    renderWithProviders(<ReviewResult review={review({ reused_from: 'rev_20261109_abc' })} />);
+
+    expect(screen.getByText(/already been reviewed under these rules/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /review it came from/ })).toHaveAttribute(
+      'href',
+      '/app/reviews/rev_20261109_abc',
+    );
+  });
+
+  it('says nothing on a review that was actually run', () => {
+    renderWithProviders(<ReviewResult review={review()} />);
+
+    expect(screen.queryByText(/already been reviewed under these rules/)).toBeNull();
+  });
+});
+
 describe('the evidence register', () => {
   it('reports satisfied layers as well as missing ones', () => {
     renderWithProviders(
@@ -652,7 +676,40 @@ describe('the evidence register', () => {
     expect(screen.getByText('Employee master')).toBeInTheDocument();
     expect(screen.getByText('Satisfied by MSPeople.')).toBeInTheDocument();
     expect(screen.getByText('Record the approver and the approval date.')).toBeInTheDocument();
-    expect(screen.getByText('1/2')).toBeInTheDocument();
+
+    const register = screen.getByRole('region', { name: /evidence and validation register/ });
+    expect(register).toHaveTextContent('1/2 baseline present');
+    expect(register).toHaveTextContent('1/2 available');
+  });
+
+  /**
+   * The header leads with the share the parameter is scored on.
+   *
+   * A register of six layers of which four are there, but only three of the
+   * four baseline ones, is a 75 — and a header that said "4/6 available" and
+   * nothing else was the one figure on the page that did not account for the
+   * score above it.
+   */
+  it('leads with the baseline share, not the count over every layer', () => {
+    renderWithProviders(
+      <ReviewResult
+        review={review({
+          evidence: [
+            evidence({ item: 'methodology' }),
+            evidence({ item: 'accrual_calculation' }),
+            evidence({ item: 'employee_master' }),
+            evidence({ item: 'approval', status: 'missing', location: null }),
+            evidence({ item: 'vacation_provision_file', required: false, status: 'missing' }),
+            evidence({ item: 'provider_screenshot', required: false }),
+          ],
+        })}
+      />,
+    );
+
+    const register = screen.getByRole('region', { name: /evidence and validation register/ });
+    expect(register).toHaveTextContent('3/4 baseline present');
+    expect(register).toHaveTextContent('1 required layer(s) missing');
+    expect(register).toHaveTextContent('4/6 available');
   });
 
   it('keeps baseline and recommended layers apart', () => {

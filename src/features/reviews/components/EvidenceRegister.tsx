@@ -22,10 +22,10 @@ export function EvidenceRegister({ review, index }: { review: ReviewDetail; inde
   const register = review.evidence;
   if (register.length === 0) return null;
 
+  const baseline = register.filter((item) => item.required);
+  const baselinePresent = baseline.filter((item) => item.status === 'available').length;
+  const requiredMissing = baseline.length - baselinePresent;
   const available = register.filter((item) => item.status === 'available').length;
-  const requiredMissing = register.filter(
-    (item) => item.required && item.status !== 'available',
-  ).length;
 
   return (
     <Section
@@ -34,14 +34,31 @@ export function EvidenceRegister({ review, index }: { review: ReviewDetail; inde
       title="Detailed evidence and validation register"
       wash="info"
       aside={
+        /*
+          The baseline share first, because that is the number this section
+          explains: the parameter is scored on how much of the baseline is
+          present, so a header leading with "4/6 available" was the one figure
+          on the page that did not account for the score beside it. The count
+          over all six layers stays, after it and unemphasised — it is what the
+          table below actually lists.
+        */
         <span>
-          <span className="font-semibold text-foreground tabular-nums">
+          {baseline.length > 0 ? (
+            <>
+              <span className="font-semibold text-foreground tabular-nums">
+                {baselinePresent}/{baseline.length}
+              </span>{' '}
+              baseline present
+              {requiredMissing > 0 ? (
+                <span className="text-danger"> · {requiredMissing} required layer(s) missing</span>
+              ) : null}
+              {' · '}
+            </>
+          ) : null}
+          <span className="tabular-nums">
             {available}/{register.length}
           </span>{' '}
           available
-          {requiredMissing > 0 ? (
-            <span className="text-danger"> · {requiredMissing} required layer(s) missing</span>
-          ) : null}
         </span>
       }
     >
@@ -66,8 +83,9 @@ export function EvidenceRegister({ review, index }: { review: ReviewDetail; inde
       </TableShell>
 
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-        Baseline layers are scored. Recommended layers are reported and never counted, so a missing
-        one lowers nothing. It is there for the reviewer to judge.
+        Baseline layers are scored, and the parameter's score is the share of them present — three
+        of four baseline layers is 75. Recommended layers are reported and never counted, so a
+        missing one lowers nothing. It is there for the reviewer to judge.
       </p>
     </Section>
   );

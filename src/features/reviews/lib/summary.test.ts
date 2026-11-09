@@ -185,6 +185,52 @@ describe('parseSummary', () => {
     expect(points[0]?.body[0]).toMatchObject({ kind: 'term', text: 'Total accrual' });
   });
 
+  /**
+   * The shape the engine writes now: one parameter per sentence, named as its
+   * own card names it, and a plain clause saying what it came to. No counts, no
+   * identifiers, no citations — so the parser's job here is only to split it,
+   * emphasise each parameter and mark the lines that carry a problem.
+   */
+  describe('the parameter summary the engine writes', () => {
+    const PARAMETERS = [
+      'Evidence Completeness: could not be fully confirmed.',
+      'Calculation Accuracy: exceptions were found and not resolved.',
+      'Evidence Appropriateness: the evidence this needs is missing.',
+      'Trend Analysis: could not be established either way.',
+      'PII Assessment passed.',
+    ].join(' ');
+
+    it('emphasises each parameter by the name its card carries', () => {
+      const points = parseSummary(PARAMETERS);
+
+      expect(points.map((point) => point.lead)).toEqual([
+        'Evidence Completeness',
+        'Calculation Accuracy',
+        'Evidence Appropriateness',
+        'Trend Analysis',
+        null,
+      ]);
+    });
+
+    it('marks every parameter that did not pass, and leaves the one that did', () => {
+      const points = parseSummary(PARAMETERS);
+
+      expect(points.map((point) => point.tone)).toEqual([
+        'attention', // "could not"
+        'attention', // "exceptions"
+        'attention', // "missing"
+        'attention', // "could not"
+        'plain',
+      ]);
+    });
+
+    it('has no identifier left to respace', () => {
+      const points = parseSummary(PARAMETERS);
+
+      expect(points.every((point) => point.body.every((part) => part.kind === 'text'))).toBe(true);
+    });
+  });
+
   it('has nothing to show for a summary nobody wrote', () => {
     expect(parseSummary('')).toEqual([]);
   });
